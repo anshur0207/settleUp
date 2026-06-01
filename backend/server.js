@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const xss = require('xss-clean');
 const dotenv = require('dotenv');
-const connectDB = require('./config/db');
+const dotenv = require('dotenv');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const friendRoutes = require('./routes/friendRoutes');
@@ -18,7 +18,6 @@ const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 const rateLimiter = require('./middleware/rateLimiter');
 
 dotenv.config();
-connectDB();
 
 const app = express();
 app.set('trust proxy', 1);

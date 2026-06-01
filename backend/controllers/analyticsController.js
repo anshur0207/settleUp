@@ -1,13 +1,4 @@
-const Expense = require('../models/Expense');
-const Group = require('../models/Group');
-const Settlement = require('../models/Settlement');
-
-const areIdsEqual = (a, b) => {
-  if (!a || !b) return false;
-  if (typeof a.equals === 'function') return a.equals(b);
-  if (typeof b.equals === 'function') return b.equals(a);
-  return String(a) === String(b);
-};
+const prisma = require('../utils/prisma');
 
 const formatMonthLabel = (date) => date.toLocaleString('en-US', { month: 'short' });
 
@@ -27,11 +18,31 @@ const buildMonthBuckets = (monthsCount) => {
 
 const getAnalytics = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const groups = await Group.find({ members: userId }).select('name description icon category members expenses createdAt').lean();
+    const userId = req.user.id;
+    
+    const groupMemberships = await prisma.groupMember.findMany({
+      where: { userId },
+      include: {
+        group: {
+          include: {
+            members: true,
+            expenses: true
+          }
+        }
+      }
+    });
 
-    const paidExpenses = await Expense.find({ paidBy: userId }).populate('group', 'name').lean();
-    const splitExpenses = await Expense.find({ 'splits.user': userId }).populate('group', 'name').lean();
+    const groups = groupMemberships.map(m => m.group);
+
+    const paidExpenses = await prisma.expense.findMany({
+      where: { paidById: userId },
+      include: { group: true, splits: true }
+    });
+
+    const splitExpenses = await prisma.expense.findMany({
+      where: { splits: { some: { userId } } },
+      include: { group: true, splits: true }
+    });
 
     const totalSpent = paidExpenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
     const today = new Date();
@@ -54,9 +65,11 @@ const getAnalytics = async (req, res, next) => {
       ? (monthlySpent > 0 ? 100 : 0)
       : Number((((monthlySpent - prevMonthSpent) / prevMonthSpent) * 100).toFixed(2));
 
-    const settlements = await Settlement.find({
-      $or: [{ payer: userId }, { payee: userId }]
-    }).lean();
+    const settlements = await prisma.settlement.findMany({
+      where: {
+        OR: [{ payerId: userId }, { payeeId: userId }]
+      }
+    });
 
     const amountsByFriend = {};
 
@@ -66,38 +79,34 @@ const getAnalytics = async (req, res, next) => {
     if (paidExpenses.length > 0 || splitExpenses.length > 0) {
       paidExpenses.forEach((expense) => {
         (expense.splits || []).forEach((split) => {
-          const splitUserId = split.user?._id || split.user;
-          if (!areIdsEqual(splitUserId, userId)) {
-            const splitUserStr = String(splitUserId);
+          const splitUserId = split.userId;
+          if (splitUserId !== userId) {
             const amount = Number(split.owed ?? split.amount ?? 0);
-            amountsByFriend[splitUserStr] = (amountsByFriend[splitUserStr] ?? 0) + amount;
+            amountsByFriend[splitUserId] = (amountsByFriend[splitUserId] ?? 0) + amount;
           }
         });
       });
 
       splitExpenses.forEach((expense) => {
-        const paidById = expense.paidBy?._id || expense.paidBy;
-        if (areIdsEqual(paidById, userId)) return;
+        const paidById = expense.paidById;
+        if (paidById === userId) return;
         
-        const mySplit = (expense.splits || []).find((split) => areIdsEqual(split.user, userId));
+        const mySplit = (expense.splits || []).find((split) => split.userId === userId);
         if (mySplit) {
-          const paidByStr = String(paidById);
           const amount = Number(mySplit.owed ?? mySplit.amount ?? 0);
-          amountsByFriend[paidByStr] = (amountsByFriend[paidByStr] ?? 0) - amount;
+          amountsByFriend[paidById] = (amountsByFriend[paidById] ?? 0) - amount;
         }
       });
 
       settlements.forEach((settlement) => {
-        const payerId = settlement.payer?._id || settlement.payer;
-        const payeeId = settlement.payee?._id || settlement.payee;
+        const payerId = settlement.payerId;
+        const payeeId = settlement.payeeId;
         const amount = Number(settlement.amount ?? 0);
 
-        if (areIdsEqual(payerId, userId)) {
-          const payeeStr = String(payeeId);
-          amountsByFriend[payeeStr] = (amountsByFriend[payeeStr] ?? 0) + amount;
-        } else if (areIdsEqual(payeeId, userId)) {
-          const payerStr = String(payerId);
-          amountsByFriend[payerStr] = (amountsByFriend[payerStr] ?? 0) - amount;
+        if (payerId === userId) {
+          amountsByFriend[payeeId] = (amountsByFriend[payeeId] ?? 0) + amount;
+        } else if (payeeId === userId) {
+          amountsByFriend[payerId] = (amountsByFriend[payerId] ?? 0) - amount;
         }
       });
 
@@ -142,7 +151,7 @@ const getAnalytics = async (req, res, next) => {
     });
 
     const groupAmounts = paidExpenses.reduce((acc, expense) => {
-      const groupId = expense.group?._id?.toString();
+      const groupId = expense.groupId;
       if (!groupId) return acc;
       acc[groupId] = (acc[groupId] || 0) + (expense.amount || 0);
       return acc;
@@ -151,16 +160,16 @@ const getAnalytics = async (req, res, next) => {
     const topGroups = groups
       .map((group) => ({
         name: group.name,
-        amount: `₹${(groupAmounts[group._id.toString()] || 0).toLocaleString()}`,
+        amount: `₹${(groupAmounts[group.id] || 0).toLocaleString()}`,
         members: `${group.members?.length || 0} Members`,
-        spent: groupAmounts[group._id.toString()] || 0,
+        spent: groupAmounts[group.id] || 0,
       }))
       .sort((a, b) => b.spent - a.spent)
       .slice(0, 3)
       .map(({ spent, ...rest }) => rest);
 
     const groupList = groups.map((group) => ({
-      id: group._id,
+      id: group.id,
       name: group.name,
       description: group.description,
       category: group.category,
