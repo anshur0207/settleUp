@@ -17,7 +17,7 @@ export default function MobileBottomNav() {
   const isActive = (path) => location.pathname.startsWith(path);
 
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 lg:hidden w-[92%] bg-white/90 backdrop-blur-lg border border-gray-200 rounded-3xl shadow-2xl px-6 py-4 flex justify-between items-center z-50">
+    <div className="fixed bottom-2 left-1/2 -translate-x-1/2 lg:hidden w-[92%] bg-white/90 backdrop-blur-lg border border-gray-200 rounded-3xl shadow-2xl px-6 py-4 flex justify-between items-center z-50">
       <button onClick={() => navigate('/dashboard')} className={`flex flex-col items-center transition ${isActive('/dashboard') ? 'text-emerald-500 font-bold' : 'text-gray-500 font-medium'}`}>
         <span className="text-2xl">🏠</span>
         <span className="text-xs">Home</span>

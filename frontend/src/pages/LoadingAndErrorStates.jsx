@@ -16,10 +16,6 @@ export default function LoadingAndErrorStates({ status: propStatus, message: pro
   const [groups, setGroups] = useState([]);
   const [expenses, setExpenses] = useState([]);
 
-  const status = propStatus || internalStatus;
-  const message = propMessage || internalMessage;
-  const handleRetry = propOnRetry || loadData;
-
   const loadData = async () => {
     if (propStatus) return; // Do not fetch internal data if controlled by props
     setInternalStatus('loading');
@@ -49,6 +45,10 @@ export default function LoadingAndErrorStates({ status: propStatus, message: pro
       }
     }
   };
+
+  const status = propStatus || internalStatus;
+  const message = propMessage || internalMessage;
+  const handleRetry = propOnRetry || loadData;
 
   useEffect(() => {
     if (!propStatus) {
