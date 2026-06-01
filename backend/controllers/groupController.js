@@ -4,49 +4,91 @@ const { minimizeDebts } = require('../utils/smartSplitAlgorithm');
 
 const getGroups = async (req, res, next) => {
   try {
+    const userId = req.user.id;
+
+    // Step 1: Get group memberships with lightweight group data (NO expenses/settlements)
     const groupMemberships = await prisma.groupMember.findMany({
-      where: { userId: req.user.id },
+      where: { userId },
       include: {
         group: {
           include: {
             members: { include: { user: { select: { id: true, name: true, avatar: true } } } },
-            expenses: {
-              include: {
-                splits: true
-              }
-            },
-            settlements: {
-              where: { status: 'completed' }
-            }
+            _count: { select: { expenses: true } }
           }
         }
       }
     });
 
+    const groupIds = groupMemberships.map(m => m.group.id);
+
+    if (groupIds.length === 0) {
+      return res.json({ groups: [] });
+    }
+
+    // Step 2: Compute balances efficiently using targeted queries
+    // Get user's owed amounts from splits (what user owes in each group)
+    const userSplits = await prisma.expenseSplit.findMany({
+      where: {
+        userId,
+        expense: { groupId: { in: groupIds } }
+      },
+      select: {
+        owed: true,
+        expense: { select: { groupId: true } }
+      }
+    });
+
+    // Get amounts user paid in each group
+    const userPaidExpenses = await prisma.expense.findMany({
+      where: {
+        paidById: userId,
+        groupId: { in: groupIds }
+      },
+      select: { groupId: true, amount: true }
+    });
+
+    // Get settlements involving user in these groups
+    const userSettlements = await prisma.settlement.findMany({
+      where: {
+        groupId: { in: groupIds },
+        status: 'completed',
+        OR: [{ payerId: userId }, { payeeId: userId }]
+      },
+      select: { groupId: true, payerId: true, payeeId: true, amount: true }
+    });
+
+    // Step 3: Build balance map per group
+    const balanceMap = {};
+    groupIds.forEach(id => { balanceMap[id] = 0; });
+
+    userSplits.forEach(split => {
+      const gId = split.expense.groupId;
+      if (gId) balanceMap[gId] -= (split.owed || 0);
+    });
+
+    userPaidExpenses.forEach(exp => {
+      if (exp.groupId) balanceMap[exp.groupId] += exp.amount;
+    });
+
+    userSettlements.forEach(settlement => {
+      const gId = settlement.groupId;
+      if (!gId) return;
+      if (settlement.payerId === userId) {
+        balanceMap[gId] += settlement.amount;
+      } else if (settlement.payeeId === userId) {
+        balanceMap[gId] -= settlement.amount;
+      }
+    });
+
+    // Step 4: Build response
     const enrichedGroups = groupMemberships.map((membership) => {
       const group = membership.group;
-      const groupExpenses = group.expenses;
-      const groupSettlements = group.settlements;
-      
-      let balance = groupExpenses.reduce((sum, expense) => {
-        const userSplit = expense.splits?.find((split) => split.userId === req.user.id);
-        const owed = userSplit?.owed || 0;
-        const paid = expense.paidById === req.user.id ? expense.amount : 0;
-        return sum + paid - owed;
-      }, 0);
-
-      groupSettlements.forEach(settlement => {
-        if (settlement.payerId === req.user.id) {
-          balance += settlement.amount;
-        } else if (settlement.payeeId === req.user.id) {
-          balance -= settlement.amount;
-        }
-      });
+      const balance = balanceMap[group.id] || 0;
 
       return {
         ...group,
         members: group.members.map(m => m.user),
-        expenseCount: groupExpenses.length,
+        expenseCount: group._count.expenses,
         balance,
         positive: balance >= 0,
       };

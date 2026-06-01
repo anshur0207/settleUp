@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../utils/prisma');
 const { minimizeDebts } = require('../utils/smartSplitAlgorithm');
+const { invalidateUser } = require('../utils/userCache');
 
 const getProfile = async (req, res, next) => {
   try {
@@ -70,6 +71,9 @@ const updateProfile = async (req, res, next) => {
       data
     });
 
+    // Invalidate cached user so auth middleware picks up new data
+    invalidateUser(req.user.id);
+
     delete updatedUser.password;
     res.json({ user: updatedUser });
   } catch (error) {
@@ -87,6 +91,7 @@ const uploadAvatar = async (req, res, next) => {
       where: { id: req.user.id },
       data: { avatar }
     });
+    invalidateUser(req.user.id);
     res.json({ user: updatedUser });
   } catch (error) {
     next(error);

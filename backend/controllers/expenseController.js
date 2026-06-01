@@ -167,7 +167,7 @@ const getExpenses = async (req, res, next) => {
     const expenses = await prisma.expense.findMany({
       where,
       orderBy: { date: 'desc' },
-      take: 80,
+      take: 20,
       include: {
         paidBy: { select: { id: true, name: true, avatar: true } },
         splits: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },
