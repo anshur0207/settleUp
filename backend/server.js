@@ -31,7 +31,8 @@ app.use(rateLimiter);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "https://settle-up-three-rho.vercel.app"
 ];
 
 app.use(cors({
