@@ -25,4 +25,5 @@ const groupSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 groupSchema.index({ name: 1 });
+groupSchema.index({ members: 1 });
 module.exports = mongoose.model('Group', groupSchema);

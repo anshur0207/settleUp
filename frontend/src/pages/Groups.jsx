@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api.js';
 import MobileTopMenu from '../components/MobileTopMenu.jsx';
+import LoadingAndErrorStates from './LoadingAndErrorStates.jsx';
 
 const iconByCategory = {
   Trip: <Plane size={26} />,
@@ -52,15 +53,19 @@ export default function Groups() {
   const [status, setStatus] = useState('');
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   const loadGroups = async () => {
     try {
       setLoadError('');
+      setIsFetching(true);
       const response = await api.get('groups');
       setGroups(response.data.groups || []);
     } catch (err) {
       console.error(err);
       setLoadError(err.response?.data?.message || 'Unable to load groups. Please try again.');
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -127,6 +132,10 @@ export default function Groups() {
   };
 
   const getColor = (index) => defaultColorClasses[index % defaultColorClasses.length];
+
+  if (isFetching && groups.length === 0) {
+    return <LoadingAndErrorStates status="loading" message="Loading your groups..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f9f7] flex flex-col lg:pl-0">
