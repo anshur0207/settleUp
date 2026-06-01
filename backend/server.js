@@ -29,7 +29,24 @@ app.use(cookieParser());
 app.use(morgan('dev'));
 app.use(rateLimiter);
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173"
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow requests without origin
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
+  credentials: true
+}));
 
 app.get('/', (req, res) => {
   res.json({ message: 'SettleUp API is running' });
