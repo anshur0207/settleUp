@@ -68,21 +68,16 @@ export default function SettleUpDashboard() {
     setStatusMessage('Fetching latest expenses, balances and groups.');
 
     try {
-      const [groupsRes, expensesRes, settlementsRes, notifRes, reqRes] = await Promise.all([
-        api.get('groups'),
-        api.get('expenses'),
-        api.get('settlements'),
-        api.get('notifications'),
-        api.get('friends/requests'),
-      ]);
-      const groupData = groupsRes.data.groups || [];
-      const expenseData = expensesRes.data.expenses || [];
-      const settlementData = settlementsRes.data.settlements || [];
+      // Single API call replaces 5 separate calls
+      const { data } = await api.get('dashboard');
+      
+      const groupData = data.groups || [];
+      const expenseData = data.expenses || [];
+      const settlementData = data.settlements || [];
 
-      const notificationsData = notifRes.data.notifications || [];
-      setUnreadNotifCount(notificationsData.filter(n => n.read !== true).length);
+      setUnreadNotifCount(data.unreadNotificationCount || 0);
 
-      const friendReqData = reqRes.data.requests || [];
+      const friendReqData = data.friendRequests || [];
       setFriendReqCount(friendReqData.length);
 
       setGroups(groupData);

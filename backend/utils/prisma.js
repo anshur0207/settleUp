@@ -12,10 +12,10 @@ const prisma = new PrismaClient({
   },
 });
 
-// Log slow queries (>200ms) in dev
+// Log slow queries (>500ms) in dev to account for remote Supabase latency
 if (process.env.NODE_ENV !== 'production') {
   prisma.$on('query', (e) => {
-    if (e.duration > 200) {
+    if (e.duration > 500) {
       console.warn(`⚠️ Slow query (${e.duration}ms): ${e.query.substring(0, 120)}...`);
     }
   });
