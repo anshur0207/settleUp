@@ -12,4 +12,5 @@ const settlementSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 settlementSchema.index({ payer: 1, payee: 1, group: 1, createdAt: -1 });
+settlementSchema.index({ group: 1 });
 module.exports = mongoose.model('Settlement', settlementSchema);
