@@ -1,8 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const Group = require('../models/Group');
-const Notification = require('../models/Notification');
+const prisma = require('../utils/prisma');
 
 const createToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
@@ -10,45 +8,46 @@ const createToken = (userId) => {
 
 const syncPendingGroupInvites = async (user) => {
   const email = user.email.toLowerCase().trim();
-  const groups = await Group.find({ 'pendingMembers.email': email });
+  
+  const pendingInvites = await prisma.groupPendingMember.findMany({
+    where: { email, status: 'pending' },
+    include: { group: { include: { members: true } } }
+  });
+  
   let hasUpdates = false;
 
-  for (const group of groups) {
-    const pendingInvite = group.pendingMembers.find((pending) => pending.email === email && pending.status === 'pending');
-    if (!pendingInvite) continue;
-
-    if (!group.members.some((memberId) => memberId.equals(user._id))) {
-      group.members.push(user._id);
+  for (const invite of pendingInvites) {
+    const isMember = invite.group.members.some(m => m.userId === user.id);
+    
+    if (!isMember) {
+      await prisma.groupMember.create({
+        data: {
+          groupId: invite.groupId,
+          userId: user.id,
+          role: 'member'
+        }
+      });
       hasUpdates = true;
     }
 
-    group.pendingMembers = group.pendingMembers.map((pending) => {
-      if (pending.email !== email) return pending;
-      pending.status = 'accepted';
-      pending.user = user._id;
-      pending.name = pending.name || user.name;
-      return pending;
+    await prisma.groupPendingMember.update({
+      where: { id: invite.id },
+      data: {
+        status: 'accepted',
+        userId: user.id,
+        name: invite.name || user.name
+      }
     });
 
-    await group.save();
-
-    user.joinedGroups = user.joinedGroups || [];
-    if (!user.joinedGroups.some((groupId) => groupId.equals(group._id))) {
-      user.joinedGroups.push(group._id);
-      hasUpdates = true;
-    }
-
-    await Notification.create({
-      user: user._id,
-      type: 'group_invite_accepted',
-      title: `You joined ${group.name}`,
-      message: `You were added to ${group.name} after signing up.`,
-      meta: { group: group._id },
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: 'group_invite_accepted',
+        title: `You joined ${invite.group.name}`,
+        message: `You were added to ${invite.group.name} after signing up.`,
+        meta: { group: invite.groupId },
+      }
     });
-  }
-
-  if (hasUpdates) {
-    await user.save();
   }
 };
 
@@ -58,15 +57,18 @@ const registerUser = async (req, res, next) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
-    const existing = await User.findOne({ email });
+    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (existing) {
       return res.status(400).json({ message: 'Email already registered' });
     }
     const hashed = await bcrypt.hash(password, 12);
-    const user = await User.create({ name, email, password: hashed, currency: currency || 'INR' });
+    const user = await prisma.user.create({
+      data: { name, email: email.toLowerCase().trim(), password: hashed, currency: currency || 'INR' }
+    });
+    
     await syncPendingGroupInvites(user);
-    const token = createToken(user._id);
-    res.status(201).json({ token, user: { id: user._id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
+    const token = createToken(user.id);
+    res.status(201).json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
   } catch (error) {
     next(error);
   }
@@ -78,7 +80,7 @@ const loginUser = async (req, res, next) => {
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
-    const user = await User.findOne({ email }).select('+password');
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -87,8 +89,8 @@ const loginUser = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     await syncPendingGroupInvites(user);
-    const token = createToken(user._id);
-    res.json({ token, user: { id: user._id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
+    const token = createToken(user.id);
+    res.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
   } catch (error) {
     next(error);
   }
@@ -106,11 +108,11 @@ const refreshToken = async (req, res, next) => {
       return res.status(400).json({ message: 'Refresh token missing' });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     if (!user) {
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
-    const newToken = createToken(user._id);
+    const newToken = createToken(user.id);
     res.json({ token: newToken });
   } catch (error) {
     next(error);
@@ -122,7 +124,6 @@ const forgotPassword = async (req, res) => {
   if (!email) {
     return res.status(400).json({ message: 'Email is required' });
   }
-  // In a production app, integrate email provider here.
   res.json({ message: `If ${email} exists, you will receive reset instructions.` });
 };
 

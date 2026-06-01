@@ -1,55 +1,51 @@
-const Group = require('../models/Group');
-const User = require('../models/User');
-const Expense = require('../models/Expense');
-const Notification = require('../models/Notification');
-const Settlement = require('../models/Settlement');
+const prisma = require('../utils/prisma');
 const xlsx = require('xlsx');
 const { minimizeDebts } = require('../utils/smartSplitAlgorithm');
 
 const getGroups = async (req, res, next) => {
   try {
-    const groups = await Group.find({ members: req.user._id }).populate('members', 'name avatar');
-    const groupIds = groups.map((group) => group._id);
-    const expenses = await Expense.find({ group: { $in: groupIds } });
-    const settlements = await Settlement.find({ group: { $in: groupIds }, status: 'completed' });
+    const groupMemberships = await prisma.groupMember.findMany({
+      where: { userId: req.user.id },
+      include: {
+        group: {
+          include: {
+            members: { include: { user: { select: { id: true, name: true, avatar: true } } } },
+            expenses: {
+              include: {
+                splits: true
+              }
+            },
+            settlements: {
+              where: { status: 'completed' }
+            }
+          }
+        }
+      }
+    });
 
-    const expensesByGroup = expenses.reduce((acc, expense) => {
-      const groupId = expense.group?.toString();
-      if (!groupId) return acc;
-      acc[groupId] = acc[groupId] || [];
-      acc[groupId].push(expense);
-      return acc;
-    }, {});
-
-    const settlementsByGroup = settlements.reduce((acc, settlement) => {
-      const groupId = settlement.group?.toString();
-      if (!groupId) return acc;
-      acc[groupId] = acc[groupId] || [];
-      acc[groupId].push(settlement);
-      return acc;
-    }, {});
-
-    const enrichedGroups = groups.map((group) => {
-      const groupExpenses = expensesByGroup[group._id.toString()] || [];
-      const groupSettlements = settlementsByGroup[group._id.toString()] || [];
+    const enrichedGroups = groupMemberships.map((membership) => {
+      const group = membership.group;
+      const groupExpenses = group.expenses;
+      const groupSettlements = group.settlements;
       
       let balance = groupExpenses.reduce((sum, expense) => {
-        const userSplit = expense.splits?.find((split) => split.user.equals(req.user._id));
+        const userSplit = expense.splits?.find((split) => split.userId === req.user.id);
         const owed = userSplit?.owed || 0;
-        const paid = expense.paidBy.equals(req.user._id) ? expense.amount : 0;
+        const paid = expense.paidById === req.user.id ? expense.amount : 0;
         return sum + paid - owed;
       }, 0);
 
       groupSettlements.forEach(settlement => {
-        if (settlement.payer.equals(req.user._id)) {
+        if (settlement.payerId === req.user.id) {
           balance += settlement.amount;
-        } else if (settlement.payee.equals(req.user._id)) {
+        } else if (settlement.payeeId === req.user.id) {
           balance -= settlement.amount;
         }
       });
 
       return {
-        ...group.toObject(),
+        ...group,
+        members: group.members.map(m => m.user),
         expenseCount: groupExpenses.length,
         balance,
         positive: balance >= 0,
@@ -64,23 +60,33 @@ const getGroups = async (req, res, next) => {
 
 const getGroup = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id)
-      .populate('members', 'name avatar email')
-      .populate('pendingMembers.user', 'name avatar email')
-      .populate({
-        path: 'expenses',
-        populate: [
-          { path: 'paidBy', select: 'name avatar email' },
-          { path: 'createdBy', select: 'name' },
-        ],
-      });
+    const group = await prisma.group.findUnique({
+      where: { id: req.params.id },
+      include: {
+        members: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },
+        pendingMembers: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },
+        expenses: {
+          include: {
+            paidBy: { select: { id: true, name: true, avatar: true, email: true } },
+            createdBy: { select: { id: true, name: true } },
+            splits: true
+          }
+        }
+      }
+    });
 
-    if (!group || !group.members.some((member) => member._id.equals(req.user._id))) {
+    if (!group || !group.members.some((member) => member.userId === req.user.id)) {
       return res.status(404).json({ message: 'Group not found or access denied' });
     }
+
+    const formattedGroup = {
+      ...group,
+      members: group.members.map(m => m.user),
+      admins: group.members.filter(m => m.role === 'admin').map(m => m.userId),
+    };
     
-    const settlements = await Settlement.find({ group: group._id, status: 'completed' });
-    res.json({ group, settlements });
+    const settlements = await prisma.settlement.findMany({ where: { groupId: group.id, status: 'completed' } });
+    res.json({ group: formattedGroup, settlements });
   } catch (error) {
     next(error);
   }
@@ -89,18 +95,22 @@ const getGroup = async (req, res, next) => {
 const createGroup = async (req, res, next) => {
   try {
     const { name, description, category, icon } = req.body;
-    const group = await Group.create({
-      name,
-      description: description || '',
-      category: category || 'Others',
-      icon: icon || '🏍️',
-      members: [req.user._id],
-      admins: [req.user._id],
+    const group = await prisma.group.create({
+      data: {
+        name,
+        description: description || '',
+        category: category || 'Others',
+        icon: icon || '🏍️',
+        creatorId: req.user.id,
+        members: {
+          create: {
+            userId: req.user.id,
+            role: 'admin'
+          }
+        }
+      }
     });
-    const user = await User.findById(req.user._id);
-    user.createdGroups.push(group._id);
-    user.joinedGroups.push(group._id);
-    await user.save();
+
     res.status(201).json({ group });
   } catch (error) {
     next(error);
@@ -109,23 +119,33 @@ const createGroup = async (req, res, next) => {
 
 const updateGroup = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id);
-    if (!group || !group.members.some(id => id.equals(req.user._id))) {
+    const membership = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId: req.params.id, userId: req.user.id } }
+    });
+
+    if (!membership) {
       return res.status(404).json({ message: 'Group not found' });
     }
-    const isAdmin = group.admins.some((id) => id.equals(req.user._id));
+    
+    const isAdmin = membership.role === 'admin';
+    const data = {};
     
     if (!isAdmin) {
-      // Non-admins can only update description
       if (req.body.description !== undefined) {
-        group.description = req.body.description;
+        data.description = req.body.description;
       }
-      // Ignore other fields silently or throw error, let's just ignore them to be safe
     } else {
-      Object.assign(group, req.body);
+      if (req.body.name !== undefined) data.name = req.body.name;
+      if (req.body.description !== undefined) data.description = req.body.description;
+      if (req.body.category !== undefined) data.category = req.body.category;
+      if (req.body.icon !== undefined) data.icon = req.body.icon;
     }
     
-    await group.save();
+    const group = await prisma.group.update({
+      where: { id: req.params.id },
+      data
+    });
+    
     res.json({ group });
   } catch (error) {
     next(error);
@@ -134,17 +154,18 @@ const updateGroup = async (req, res, next) => {
 
 const deleteGroup = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id);
-    if (!group) {
+    const membership = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId: req.params.id, userId: req.user.id } }
+    });
+
+    if (!membership) {
       return res.status(404).json({ message: 'Group not found' });
     }
-    if (!group.admins.some((id) => id.equals(req.user._id))) {
+    if (membership.role !== 'admin') {
       return res.status(403).json({ message: 'Must be admin to delete group' });
     }
-    await group.deleteOne();
-    await User.updateMany({ joinedGroups: group._id }, { $pull: { joinedGroups: group._id, createdGroups: group._id } });
-    await Expense.deleteMany({ group: group._id });
-    await Settlement.deleteMany({ group: group._id });
+    
+    await prisma.group.delete({ where: { id: req.params.id } });
     
     res.json({ message: 'Group and all associated expenses and settlements deleted' });
   } catch (error) {
@@ -154,8 +175,13 @@ const deleteGroup = async (req, res, next) => {
 
 const addMember = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id);
-    if (!group || !group.members.includes(req.user._id)) {
+    const groupId = req.params.id;
+    const membership = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: req.user.id } },
+      include: { group: true }
+    });
+
+    if (!membership) {
       return res.status(404).json({ message: 'Group not found' });
     }
 
@@ -164,46 +190,52 @@ const addMember = async (req, res, next) => {
       return res.status(400).json({ message: 'Email is required' });
     }
 
-    if (group.pendingMembers.some((pending) => pending.email === email && pending.status === 'pending')) {
+    const existingPending = await prisma.groupPendingMember.findUnique({
+      where: { groupId_email: { groupId, email } }
+    });
+
+    if (existingPending && existingPending.status === 'pending') {
       return res.status(400).json({ message: 'Invitation already pending for this email' });
     }
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser && group.members.some((member) => member.equals(existingUser._id))) {
-      return res.status(400).json({ message: 'User already in group' });
-    }
-
+    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      group.members.push(existingUser._id);
-      group.pendingMembers = group.pendingMembers.filter((pending) => pending.email !== email);
-      await group.save();
-
-      existingUser.joinedGroups = existingUser.joinedGroups || [];
-      if (!existingUser.joinedGroups.some((groupId) => groupId.equals(group._id))) {
-        existingUser.joinedGroups.push(group._id);
-        await existingUser.save();
+      const isAlreadyMember = await prisma.groupMember.findUnique({
+        where: { groupId_userId: { groupId, userId: existingUser.id } }
+      });
+      
+      if (isAlreadyMember) {
+        return res.status(400).json({ message: 'User already in group' });
       }
-
-      await Notification.create({
-        user: existingUser._id,
-        type: 'group_added',
-        title: `Added to ${group.name}`,
-        message: `${req.user.name} added you to the group ${group.name}.`,
-        meta: { group: group._id },
+      
+      await prisma.groupMember.create({
+        data: { groupId, userId: existingUser.id, role: 'member' }
       });
 
-      return res.json({ group });
+      if (existingPending) {
+        await prisma.groupPendingMember.delete({ where: { id: existingPending.id } });
+      }
+
+      await prisma.notification.create({
+        data: {
+          userId: existingUser.id,
+          type: 'group_added',
+          title: `Added to ${membership.group.name}`,
+          message: `${req.user.name} added you to the group ${membership.group.name}.`,
+          meta: { group: groupId },
+        }
+      });
+
+      return res.json({ group: membership.group });
     }
 
-    const pendingEntry = {
-      email,
-      invitedBy: req.user._id,
-    };
+    await prisma.groupPendingMember.upsert({
+      where: { groupId_email: { groupId, email } },
+      update: { status: 'pending', invitedById: req.user.id },
+      create: { groupId, email, status: 'pending', invitedById: req.user.id }
+    });
 
-    group.pendingMembers.push(pendingEntry);
-    await group.save();
-
-    res.json({ group });
+    res.json({ group: membership.group });
   } catch (error) {
     next(error);
   }
@@ -211,30 +243,29 @@ const addMember = async (req, res, next) => {
 
 const removeMember = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id);
-    if (!group || !group.members.some(id => id.equals(req.user._id))) {
+    const groupId = req.params.id;
+    const memberId = req.params.memberId;
+    
+    const requesterMembership = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: req.user.id } }
+    });
+
+    if (!requesterMembership) {
       return res.status(404).json({ message: 'Group not found' });
     }
     
-    const memberId = req.params.memberId;
-    const isSelf = req.user._id.equals(memberId);
-    const isAdmin = group.admins.some((id) => id.equals(req.user._id));
+    const isSelf = req.user.id === memberId;
+    const isAdmin = requesterMembership.role === 'admin';
 
     if (!isAdmin && !isSelf) {
       return res.status(403).json({ message: 'Must be admin to remove other members' });
     }
 
-    group.members = group.members.filter((id) => !id.equals(memberId));
-    group.admins = group.admins.filter((id) => !id.equals(memberId));
-
-    if (group.members.length > 0 && group.admins.length === 0) {
-      group.admins.push(group.members[0]);
-    }
-
-    await group.save();
-    await User.findByIdAndUpdate(memberId, { $pull: { joinedGroups: group._id } });
+    await prisma.groupMember.delete({
+      where: { groupId_userId: { groupId, userId: memberId } }
+    });
     
-    res.json({ message: 'Member removed', group });
+    res.json({ message: 'Member removed' });
   } catch (error) {
     next(error);
   }
@@ -242,18 +273,24 @@ const removeMember = async (req, res, next) => {
 
 const exportGroupData = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id);
-    if (!group) {
+    const groupId = req.params.id;
+    const membership = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: req.user.id } },
+      include: { group: true }
+    });
+
+    if (!membership) {
       return res.status(404).json({ message: 'Group not found' });
     }
-    if (!group.members.includes(req.user._id)) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
 
-    const expenses = await Expense.find({ group: group._id })
-      .populate('paidBy', 'name email')
-      .populate('splits.user', 'name email')
-      .sort({ date: -1 });
+    const expenses = await prisma.expense.findMany({
+      where: { groupId },
+      include: {
+        paidBy: { select: { name: true, email: true } },
+        splits: { include: { user: { select: { name: true, email: true } } } }
+      },
+      orderBy: { date: 'desc' }
+    });
 
     const exportData = expenses.map(expense => {
       const splitDetails = expense.splits.map(split => {
@@ -279,7 +316,7 @@ const exportGroupData = async (req, res, next) => {
     const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
     res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.attachment(`export-${group.name.replace(/\s+/g, '_')}.xlsx`);
+    res.attachment(`export-${membership.group.name.replace(/\s+/g, '_')}.xlsx`);
     return res.send(excelBuffer);
   } catch (error) {
     next(error);
@@ -288,21 +325,26 @@ const exportGroupData = async (req, res, next) => {
 
 const getSmartSplitSuggestions = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id).populate('members', 'name avatar email');
-    if (!group || !group.members.some(member => member._id.equals(req.user._id))) {
+    const group = await prisma.group.findUnique({
+      where: { id: req.params.id },
+      include: {
+        members: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },
+        expenses: { include: { splits: true } },
+        settlements: { where: { status: 'completed' } }
+      }
+    });
+    
+    if (!group || !group.members.some(member => member.userId === req.user.id)) {
       return res.status(404).json({ message: 'Group not found' });
     }
-
-    const expenses = await Expense.find({ group: group._id });
-    const settlements = await Settlement.find({ group: group._id, status: 'completed' });
 
     const rawDebts = {};
     const netBalances = {};
 
-    expenses.forEach(expense => {
-      const paidBy = expense.paidBy.toString();
+    group.expenses.forEach(expense => {
+      const paidBy = expense.paidById;
       expense.splits.forEach(split => {
-        const user = split.user.toString();
+        const user = split.userId;
         const owed = split.owed ?? split.amount ?? 0;
         if (user !== paidBy && owed > 0) {
           const key = `${user}_${paidBy}`;
@@ -313,9 +355,9 @@ const getSmartSplitSuggestions = async (req, res, next) => {
       netBalances[paidBy] = (netBalances[paidBy] || 0) + expense.amount;
     });
 
-    settlements.forEach(settlement => {
-      const payer = settlement.payer.toString();
-      const payee = settlement.payee.toString();
+    group.settlements.forEach(settlement => {
+      const payer = settlement.payerId;
+      const payee = settlement.payeeId;
       const key = `${payer}_${payee}`;
       if (rawDebts[key]) {
         rawDebts[key] -= settlement.amount;
@@ -336,11 +378,11 @@ const getSmartSplitSuggestions = async (req, res, next) => {
     const optimized = minimizeDebts(netBalances);
     
     const userMap = {};
-    group.members.forEach(m => { userMap[m._id.toString()] = m; });
+    group.members.forEach(m => { userMap[m.userId] = m.user; });
 
     const optimizedSettlements = optimized.map(t => ({
-      from: userMap[t.from] || { _id: t.from, name: 'Unknown' },
-      to: userMap[t.to] || { _id: t.to, name: 'Unknown' },
+      from: userMap[t.from] || { id: t.from, name: 'Unknown' },
+      to: userMap[t.to] || { id: t.to, name: 'Unknown' },
       amount: t.amount
     }));
 
@@ -357,18 +399,24 @@ const getSmartSplitSuggestions = async (req, res, next) => {
 
 const toggleSmartSplit = async (req, res, next) => {
   try {
-    const group = await Group.findById(req.params.id);
-    if (!group || !group.members.some(member => member._id.equals(req.user._id))) {
+    const group = await prisma.group.findUnique({
+      where: { id: req.params.id },
+      include: { members: true }
+    });
+    
+    if (!group || !group.members.some(member => member.userId === req.user.id)) {
       return res.status(404).json({ message: 'Group not found' });
     }
 
-    if (!group.settings) {
-      group.settings = {};
-    }
-    group.settings.smartSplit = req.body.enabled;
-    await group.save();
+    const settings = typeof group.settings === 'object' ? group.settings : JSON.parse(group.settings);
+    settings.smartSplit = req.body.enabled;
+    
+    const updatedGroup = await prisma.group.update({
+      where: { id: group.id },
+      data: { settings }
+    });
 
-    res.json({ message: 'Smart Split updated successfully', group });
+    res.json({ message: 'Smart Split updated successfully', group: updatedGroup });
   } catch (error) {
     next(error);
   }

@@ -1,6 +1,4 @@
-const Settlement = require('../models/Settlement');
-const Notification = require('../models/Notification');
-const Expense = require('../models/Expense');
+const prisma = require('../utils/prisma');
 
 const settlePayment = async (req, res, next) => {
   try {
@@ -12,51 +10,58 @@ const settlePayment = async (req, res, next) => {
     let createdSettlements = [];
 
     if (groupId) {
-      const settlement = await Settlement.create({
-        payer: req.user._id,
-        payee,
-        group: groupId,
-        amount: Number(amount),
-        currency: req.user.currency || 'INR',
-        note: note || '',
-        referenceId: referenceId || '',
-        status: 'completed',
+      const settlement = await prisma.settlement.create({
+        data: {
+          payerId: req.user.id,
+          payeeId: payee,
+          groupId: groupId,
+          amount: Number(amount),
+          currency: req.user.currency || 'INR',
+          note: note || '',
+          referenceId: referenceId || '',
+          status: 'completed',
+        }
       });
       createdSettlements.push(settlement);
     } else {
-      const expenses = await Expense.find({
-        $or: [
-          { paidBy: payee, 'splits.user': req.user._id },
-          { paidBy: req.user._id, 'splits.user': payee }
-        ]
+      const expenses = await prisma.expense.findMany({
+        where: {
+          OR: [
+            { paidById: payee, splits: { some: { userId: req.user.id } } },
+            { paidById: req.user.id, splits: { some: { userId: payee } } }
+          ]
+        },
+        include: { splits: true }
       });
 
       const groupBalances = {}; 
       expenses.forEach(exp => {
-        const gId = exp.group ? exp.group.toString() : 'nongroup';
+        const gId = exp.groupId || 'nongroup';
         groupBalances[gId] = groupBalances[gId] || 0;
         
-        if (exp.paidBy.equals(payee)) {
-          const mySplit = exp.splits.find(s => s.user.equals(req.user._id));
+        if (exp.paidById === payee) {
+          const mySplit = exp.splits.find(s => s.userId === req.user.id);
           if (mySplit) groupBalances[gId] += (mySplit.owed || mySplit.amount || 0);
-        } else if (exp.paidBy.equals(req.user._id)) {
-          const theirSplit = exp.splits.find(s => s.user.equals(payee));
+        } else if (exp.paidById === req.user.id) {
+          const theirSplit = exp.splits.find(s => s.userId === payee);
           if (theirSplit) groupBalances[gId] -= (theirSplit.owed || theirSplit.amount || 0);
         }
       });
 
-      const existingSettlements = await Settlement.find({
-        $or: [
-          { payer: req.user._id, payee: payee },
-          { payer: payee, payee: req.user._id }
-        ]
+      const existingSettlements = await prisma.settlement.findMany({
+        where: {
+          OR: [
+            { payerId: req.user.id, payeeId: payee },
+            { payerId: payee, payeeId: req.user.id }
+          ]
+        }
       });
 
       existingSettlements.forEach(settlement => {
-        const gId = settlement.group ? settlement.group.toString() : 'nongroup';
+        const gId = settlement.groupId || 'nongroup';
         groupBalances[gId] = groupBalances[gId] || 0;
         
-        if (settlement.payer.equals(req.user._id)) {
+        if (settlement.payerId === req.user.id) {
           groupBalances[gId] -= settlement.amount; 
         } else {
           groupBalances[gId] += settlement.amount; 
@@ -70,42 +75,50 @@ const settlePayment = async (req, res, next) => {
           const settleAmount = Math.min(debt, remainingAmount);
           remainingAmount -= settleAmount;
           
-          const s = await Settlement.create({
-            payer: req.user._id,
-            payee,
-            group: gId === 'nongroup' ? null : gId,
-            amount: Number(settleAmount.toFixed(2)),
-            currency: req.user.currency || 'INR',
-            note: note || '',
-            referenceId: referenceId || '',
-            status: 'completed',
+          const s = await prisma.settlement.create({
+            data: {
+              payerId: req.user.id,
+              payeeId: payee,
+              groupId: gId === 'nongroup' ? null : gId,
+              amount: Number(settleAmount.toFixed(2)),
+              currency: req.user.currency || 'INR',
+              note: note || '',
+              referenceId: referenceId || '',
+              status: 'completed',
+            }
           });
           createdSettlements.push(s);
         }
       }
 
       if (remainingAmount > 0.01 || createdSettlements.length === 0) {
-          const s = await Settlement.create({
-            payer: req.user._id,
-            payee,
-            group: null,
-            amount: Number(remainingAmount.toFixed(2)),
-            currency: req.user.currency || 'INR',
-            note: note || '',
-            referenceId: referenceId || '',
-            status: 'completed',
+          const s = await prisma.settlement.create({
+            data: {
+              payerId: req.user.id,
+              payeeId: payee,
+              groupId: null,
+              amount: Number(remainingAmount.toFixed(2)),
+              currency: req.user.currency || 'INR',
+              note: note || '',
+              referenceId: referenceId || '',
+              status: 'completed',
+            }
           });
           createdSettlements.push(s);
       }
     }
 
-    await Notification.create({ 
-      user: payee, 
-      type: 'settlement', 
-      title: 'Payment received', 
-      message: `${req.user.name} settled ₹${amount}`, 
-      meta: { settlement: createdSettlements[0]._id, group: groupId } 
-    });
+    if (createdSettlements.length > 0) {
+      await prisma.notification.create({ 
+        data: {
+          userId: payee, 
+          type: 'settlement', 
+          title: 'Payment received', 
+          message: `${req.user.name} settled ₹${amount}`, 
+          meta: { settlement: createdSettlements[0].id, group: groupId } 
+        }
+      });
+    }
 
     res.status(201).json({ settlements: createdSettlements });
   } catch (error) {
@@ -115,7 +128,16 @@ const settlePayment = async (req, res, next) => {
 
 const getSettlements = async (req, res, next) => {
   try {
-    const settlements = await Settlement.find({ $or: [{ payer: req.user._id }, { payee: req.user._id }] }).sort({ createdAt: -1 }).populate('payer payee', 'name avatar');
+    const settlements = await prisma.settlement.findMany({
+      where: {
+        OR: [{ payerId: req.user.id }, { payeeId: req.user.id }]
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        payer: { select: { id: true, name: true, avatar: true } },
+        payee: { select: { id: true, name: true, avatar: true } }
+      }
+    });
     res.json({ settlements });
   } catch (error) {
     next(error);
