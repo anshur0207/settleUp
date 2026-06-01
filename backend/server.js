@@ -5,7 +5,6 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const xss = require('xss-clean');
 const dotenv = require('dotenv');
-const dotenv = require('dotenv');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const friendRoutes = require('./routes/friendRoutes');
@@ -14,6 +13,7 @@ const expenseRoutes = require('./routes/expenseRoutes');
 const settlementRoutes = require('./routes/settlementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 const rateLimiter = require('./middleware/rateLimiter');
 
@@ -61,6 +61,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/settlements', settlementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

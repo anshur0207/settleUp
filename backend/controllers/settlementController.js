@@ -133,6 +133,7 @@ const getSettlements = async (req, res, next) => {
         OR: [{ payerId: req.user.id }, { payeeId: req.user.id }]
       },
       orderBy: { createdAt: 'desc' },
+      take: 50,
       include: {
         payer: { select: { id: true, name: true, avatar: true } },
         payee: { select: { id: true, name: true, avatar: true } }
