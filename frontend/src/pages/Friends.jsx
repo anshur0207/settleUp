@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Search, Plus, ArrowUpRight, ArrowDownLeft, MessageCircle, UserPlus, X, Wallet, CreditCard, Smartphone, Building2, Calendar, CheckCircle2 } from 'lucide-react';
 import api from '../services/api.js';
+import LoadingAndErrorStates from './LoadingAndErrorStates.jsx';
 
 const paymentMethods = [
   { title: 'UPI Payment', icon: <Smartphone size={22} /> },
@@ -26,6 +27,7 @@ const Friends = () => {
   const [searchStatus, setSearchStatus] = useState('');
   const [searchError, setSearchError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [settleOpen, setSettleOpen] = useState(false);
   const [settlingFriend, setSettlingFriend] = useState(null);
   const [settlementMode, setSettlementMode] = useState('full');
@@ -56,9 +58,12 @@ const Friends = () => {
 
   useEffect(() => {
     if (!user) return;
-    loadFriends();
-    loadRequests();
-    loadBalances();
+    const init = async () => {
+      setPageLoading(true);
+      await Promise.all([loadFriends(), loadRequests(), loadBalances()]);
+      setPageLoading(false);
+    };
+    init();
   }, [user]);
 
   const loadRequests = async () => {
@@ -164,7 +169,7 @@ const Friends = () => {
   const openSettleModal = (friend) => {
     const balance = friendAmounts[friend._id] ?? 0;
     setSettlingFriend({ ...friend, balance });
-    setSettlementAmount(Math.abs(balance).toString());
+    setSettlementAmount(Number(Math.abs(balance).toFixed(2)).toString());
     setSettlementMode('full');
     setSelectedMethod('UPI Payment');
     setSettlementDate(new Date().toISOString().slice(0, 10));
@@ -287,7 +292,7 @@ const Friends = () => {
   const displayFriends = friends.map((friend, index) => {
     const balance = friendAmounts[friend._id] ?? 0;
     const positive = balance >= 0;
-    const formatted = `₹${Math.abs(balance).toLocaleString()}`;
+    const formatted = `₹${Number(Math.abs(balance).toFixed(2)).toLocaleString()}`;
 
     return {
       ...friend,
@@ -297,6 +302,10 @@ const Friends = () => {
       avatar: friend.avatar || `https://i.pravatar.cc/150?img=${11 + index}`,
     };
   });
+
+  if (pageLoading) {
+    return <LoadingAndErrorStates status="loading" message="Loading friends..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f9f7] p-4 md:p-6">
@@ -584,7 +593,7 @@ const Friends = () => {
               </div>
             </div>
 
-            <div className="flex-1 p-5 md:p-6 relative no-scrollbar">
+            <div className="flex-1 p-5 md:p-6 relative no-scrollbar overflow-y-auto">
               <button
                 type="button"
                 onClick={closeSettleModal}
@@ -608,7 +617,7 @@ const Friends = () => {
                     type="button"
                     onClick={() => {
                       setSettlementMode('full');
-                      setSettlementAmount(Math.abs(settlingFriend.balance || 0).toString());
+                      setSettlementAmount(Number(Math.abs(settlingFriend.balance || 0).toFixed(2)).toString());
                     }}
                     className={`h-12 rounded-xl font-bold text-base ${settlementMode === 'full' ? 'bg-emerald-500 text-white shadow-md' : 'border border-gray-200 hover:bg-gray-50 text-gray-900'}`}
                   >

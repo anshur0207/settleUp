@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import MobileTopMenu from '../components/MobileTopMenu.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import LoadingAndErrorStates from './LoadingAndErrorStates.jsx';
 
 const Settings = () => {
   const { user, updateUser, logout } = useAuth();
@@ -29,6 +30,7 @@ const Settings = () => {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportGroups, setExportGroups] = useState([]);
   const [exporting, setExporting] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -51,6 +53,8 @@ const Settings = () => {
       } catch (err) {
         console.error(err);
         setError(err.response?.data?.message || 'Unable to load profile');
+      } finally {
+        setPageLoading(false);
       }
     };
 
@@ -193,6 +197,10 @@ const Settings = () => {
       setExporting(false);
     }
   };
+
+  if (pageLoading) {
+    return <LoadingAndErrorStates status="loading" message="Loading settings..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f9f7] p-6">

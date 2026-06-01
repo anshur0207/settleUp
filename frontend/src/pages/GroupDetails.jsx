@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api.js';
 import { minimizeDebts } from '../utils/smartSplit.js';
+import LoadingAndErrorStates from './LoadingAndErrorStates.jsx';
 
 const GroupDetails = () => {
   const { id } = useParams();
@@ -27,6 +28,7 @@ const GroupDetails = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [friends, setFriends] = useState([]);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [descInput, setDescInput] = useState('');
@@ -128,8 +130,12 @@ const GroupDetails = () => {
 
   useEffect(() => {
     if (id) {
-      loadGroup();
-      loadFriends();
+      const init = async () => {
+        setPageLoading(true);
+        await Promise.all([loadGroup(), loadFriends()]);
+        setPageLoading(false);
+      };
+      init();
     }
   }, [id]);
 
@@ -329,6 +335,10 @@ const GroupDetails = () => {
       }
     }
   };
+
+  if (pageLoading) {
+    return <LoadingAndErrorStates status="loading" message="Loading group details..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f9f7]">
