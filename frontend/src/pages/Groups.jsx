@@ -146,13 +146,14 @@ export default function Groups() {
             <p className="text-gray-500 mt-1 md:mt-2 text-sm md:text-lg">Manage shared expenses with your groups.</p>
           </div>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <button
               onClick={() => setShowCreate(!showCreate)}
-              className="h-14 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-lg flex items-center gap-3"
+              className="h-10 md:h-14 px-3 md:px-6 rounded-xl md:rounded-2xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-lg flex items-center gap-1 md:gap-3 text-sm md:text-base"
             >
-              <Plus size={20} />
-              {showCreate ? 'Cancel' : 'New Group'}
+              <Plus size={18} className="md:w-5 md:h-5" />
+              <span>{showCreate ? 'Cancel' : 'New'}</span>
+              <span className="hidden md:inline">Group</span>
             </button>
           </div>
           <MobileTopMenu />
