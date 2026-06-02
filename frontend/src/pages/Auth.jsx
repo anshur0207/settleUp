@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function AuthPage() {
   const location = useLocation();
@@ -59,8 +60,14 @@ export default function AuthPage() {
 
     try {
       if (activeTab === "signup") {
+        if (!form.email.toLowerCase().trim().endsWith('@gmail.com')) {
+          setError('Only @gmail.com emails are allowed for signup');
+          setLoading(false);
+          return;
+        }
         if (form.password !== form.confirm) {
           setError("Passwords do not match");
+          setLoading(false);
           return;
         }
 
@@ -90,6 +97,24 @@ export default function AuthPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await api.post('auth/google', { credential: credentialResponse.credential });
+      login(response.data);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Google Auth failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google Auth failed');
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <div className="flex-1 flex flex-col w-full">
@@ -103,30 +128,13 @@ export default function AuthPage() {
             </h1>
           </Link>
 
-          <div className="hidden lg:flex items-center justify-center gap-12 text-lg font-medium text-gray-700">
-            <Link to="/" className="text-emerald-600 border-b-4 border-emerald-500 pb-2">
-              Home
-            </Link>
-
-            <Link to="/" className="hover:text-emerald-500 transition">
-              Features
-            </Link>
-
-            <Link to="/" className="hover:text-emerald-500 transition">
-              About
-            </Link>
-
-            <Link to="/" className="hover:text-emerald-500 transition">
-              Contact
-            </Link>
-          </div>
 
           <div className="hidden lg:block"></div>
         </nav>
 
         <div className="grid lg:grid-cols-2 flex-1">
           {/* Left Section */}
-          <div className="bg-[#f3faf5] p-8 md:p-16 flex flex-col justify-between">
+          <div className="bg-[#f3faf5] p-8 md:p-16 flex flex-col justify-between order-2 lg:order-1">
             <div>
               <h1 className="text-5xl md:text-7xl font-black leading-tight text-gray-900">
                 Split expenses.
@@ -175,7 +183,7 @@ export default function AuthPage() {
           </div>
 
           {/* Right Section */}
-          <div className="p-8 md:p-16 flex flex-col justify-center bg-white">
+          <div className="p-8 md:p-16 flex flex-col justify-start bg-white pt-10 md:pt-16 order-1 lg:order-2">
             <div>
               <h1 className="text-5xl font-black text-gray-900">Welcome Back 👋</h1>
 
@@ -269,9 +277,28 @@ export default function AuthPage() {
               </button>
             </form>
 
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="bg-white px-2 text-slate-500">
+                    {activeTab === "login" ? "Or continue with" : "Or sign up with"}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  useOneTap={activeTab === "login"}
+                  text={activeTab === "login" ? "signin_with" : "signup_with"}
+                />
+              </div>
+            </div>
 
-
-            <p className="text-center text-gray-500 pt-4">
+            <p className="text-center text-gray-500 pt-8">
               {activeTab === "login"
                 ? "Don't have an account?"
                 : "Already have an account?"}

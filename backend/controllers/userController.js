@@ -100,19 +100,23 @@ const uploadAvatar = async (req, res, next) => {
 
 const searchUsers = async (req, res, next) => {
   try {
-    const email = req.query.email?.toLowerCase().trim();
-    if (!email) {
-      return res.status(400).json({ message: 'Email query is required' });
+    const query = req.query.query?.trim() || req.query.email?.trim();
+    if (!query) {
+      return res.status(400).json({ message: 'Search query is required' });
     }
     const users = await prisma.user.findMany({
       where: {
-        email: { contains: email, mode: 'insensitive' },
+        OR: [
+          { email: { contains: query, mode: 'insensitive' } },
+          { name: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query, mode: 'insensitive' } }
+        ],
         id: { not: req.user.id }
       },
       select: { id: true, name: true, email: true, avatar: true },
       take: 10
     });
-    res.json({ users });
+    res.json({ users, found: users.length > 0, user: users[0] });
   } catch (error) {
     next(error);
   }

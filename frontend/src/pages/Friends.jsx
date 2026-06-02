@@ -98,14 +98,14 @@ const Friends = () => {
       }
 
       expenseData.forEach((expense) => {
-        const paidById = expense.paidBy?._id || expense.paidBy;
-        const splitForUser = expense.splits?.find((split) => String(split.user?._id || split.user) === String(userId));
+        const paidById = expense.paidBy?.id || expense.paidBy?._id || expense.paidBy;
+        const splitForUser = expense.splits?.find((split) => String(split.user?.id || split.user?._id || split.user) === String(userId));
 
         if (String(paidById) === String(userId)) {
           expense.splits
-            .filter((split) => String(split.user?._id || split.user) !== String(userId))
+            .filter((split) => String(split.user?.id || split.user?._id || split.user) !== String(userId))
             .forEach((split) => {
-              const splitUserId = split.user?._id || split.user;
+              const splitUserId = split.user?.id || split.user?._id || split.user;
               const amount = Number(split.owed ?? split.amount ?? 0);
               amountsByFriend[splitUserId] = (amountsByFriend[splitUserId] ?? 0) + amount;
             });
@@ -116,8 +116,8 @@ const Friends = () => {
       });
 
       settlementData.forEach((settlement) => {
-        const payerId = settlement.payer?._id || settlement.payer;
-        const payeeId = settlement.payee?._id || settlement.payee;
+        const payerId = settlement.payer?.id || settlement.payer?._id || settlement.payer;
+        const payeeId = settlement.payee?.id || settlement.payee?._id || settlement.payee;
         const amount = Number(settlement.amount ?? 0);
 
         if (String(payerId) === String(userId)) {
@@ -154,7 +154,7 @@ const Friends = () => {
     if (!friendToRemove) return;
     setRemovingLoading(true);
     try {
-      await api.delete(`friends/${friendToRemove._id}`);
+      await api.delete(`friends/${friendToRemove.id || friendToRemove._id}`);
       setRemoveModalOpen(false);
       setFriendToRemove(null);
       loadFriends();
@@ -167,7 +167,7 @@ const Friends = () => {
   };
 
   const openSettleModal = (friend) => {
-    const balance = friendAmounts[friend._id] ?? 0;
+    const balance = friendAmounts[friend.id || friend._id] ?? 0;
     setSettlingFriend({ ...friend, balance });
     setSettlementAmount(Number(Math.abs(balance).toFixed(2)).toString());
     setSettlementMode('full');
@@ -186,8 +186,8 @@ const Friends = () => {
   const openFriendDetails = (friend) => {
     const friendExpenses = expenses
       .filter((expense) =>
-        String(expense.paidBy?._id || expense.paidBy) === String(friend._id) ||
-        expense.splits?.some((split) => String(split.user?._id || split.user) === String(friend._id))
+        String(expense.paidBy?.id || expense.paidBy?._id || expense.paidBy) === String(friend.id || friend._id) ||
+        expense.splits?.some((split) => String(split.user?.id || split.user?._id || split.user) === String(friend.id || friend._id))
       )
       .sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -212,7 +212,7 @@ const Friends = () => {
 
     try {
       await api.post('settlements', {
-        payee: settlingFriend._id,
+        payee: settlingFriend.id || settlingFriend._id,
         amount: Number(settlementAmount),
         note: settlementNote,
         referenceId: settlementRef,
@@ -234,18 +234,18 @@ const Friends = () => {
     setSearchResult(null);
 
     if (!searchQuery.trim()) {
-      setSearchError('Enter an email to search.');
+      setSearchError('Enter a name, email or mobile to search.');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await api.get(`/users/search?email=${encodeURIComponent(searchQuery.trim())}`);
+      const response = await api.get(`/users/search?query=${encodeURIComponent(searchQuery.trim())}`);
       setSearchResult(response.data);
-      if (response.data.found) {
-        setSearchStatus('User found. You can send a friend request.');
+      if (response.data.users && response.data.users.length > 0) {
+        setSearchStatus(`${response.data.users.length} user(s) found.`);
       } else {
-        setSearchStatus('No registered user found. They can join later with this email.');
+        setSearchStatus('No registered users found.');
       }
     } catch (err) {
       setSearchError(err.response?.data?.message || 'Search failed');
@@ -254,23 +254,19 @@ const Friends = () => {
     }
   };
 
-  const handleSendRequest = async () => {
+  const handleSendRequest = async (emailToRequest) => {
     setSearchError('');
     setSearchStatus('');
-    if (!searchResult?.found) {
-      setSearchError('Only registered users can receive friend requests.');
-      return;
-    }
-
     try {
-      await api.post('friends/request', { email: searchResult.user.email, message: '' });
+      await api.post('friends/request', { email: emailToRequest, message: '' });
       setSearchStatus('Friend request sent successfully.');
-      setPendingSent((current) => [
-        ...current.filter((item) => item.email !== searchResult.user.email),
-        { ...searchResult.user, status: 'pending' },
-      ]);
-      setSearchQuery('');
-      setSearchResult(null);
+      const requestedUser = searchResult?.users?.find(u => u.email === emailToRequest);
+      if (requestedUser) {
+        setPendingSent((current) => [
+          ...current.filter((item) => item.email !== emailToRequest),
+          { ...requestedUser, status: 'pending' },
+        ]);
+      }
       loadFriends();
     } catch (err) {
       setSearchError(err.response?.data?.message || 'Unable to send request');
@@ -290,7 +286,7 @@ const Friends = () => {
   const focusSearch = () => searchRef.current?.focus();
 
   const displayFriends = friends.map((friend, index) => {
-    const balance = friendAmounts[friend._id] ?? 0;
+    const balance = friendAmounts[friend.id || friend._id] ?? 0;
     const positive = balance >= 0;
     const formatted = `₹${Number(Math.abs(balance).toFixed(2)).toLocaleString()}`;
 
@@ -373,7 +369,7 @@ const Friends = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="Search friends by email..."
+              placeholder="Search friends by name, email or mobile..."
               className="flex-1 h-12 md:h-14 bg-transparent outline-none text-base md:text-lg w-full"
             />
           </div>
@@ -391,29 +387,36 @@ const Friends = () => {
           <div className="mb-8 rounded-[28px] border border-gray-100 bg-white p-6 shadow-lg">
             <div className="flex items-start gap-4">
               <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center text-2xl">
-                {searchResult.found ? searchResult.user.name.slice(0, 1) : '✉️'}
+                {searchResult.users && searchResult.users.length > 0 ? '👥' : '✉️'}
               </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-500">
-                  {searchResult.found ? 'Registered user found' : 'No registered user found'}
+                  {searchResult.users && searchResult.users.length > 0 ? 'Search Results' : 'No registered user found'}
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-gray-900">
-                  {searchResult.found ? searchResult.user.name : searchResult.email}
-                </h2>
-                {searchResult.found && <p className="text-sm text-gray-500">{searchResult.user.email}</p>}
-                <p className="mt-3 text-sm text-slate-600">{searchStatus}</p>
+                <p className="mt-1 text-sm text-slate-600">{searchStatus}</p>
               </div>
             </div>
 
-            {searchResult.found ? (
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleSendRequest}
-                  className="inline-flex h-14 items-center justify-center rounded-2xl bg-emerald-500 px-6 text-sm font-semibold text-white transition hover:bg-emerald-600"
-                >
-                  Add Friend
-                </button>
+            {searchResult.users && searchResult.users.length > 0 ? (
+              <div className="mt-6 space-y-4">
+                {searchResult.users.map(u => (
+                  <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl border border-gray-100 hover:bg-gray-50 transition">
+                    <div className="flex items-center gap-4">
+                       <img src={u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`} alt={u.name} className="w-12 h-12 rounded-xl object-cover" />
+                       <div>
+                         <h3 className="font-bold text-gray-900">{u.name}</h3>
+                         <p className="text-sm text-gray-500">{u.email}</p>
+                       </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSendRequest(u.email)}
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-emerald-500 px-6 text-sm font-semibold text-white transition hover:bg-emerald-600 shrink-0"
+                    >
+                      Add Friend
+                    </button>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="mt-6 text-sm text-slate-600">
@@ -438,7 +441,7 @@ const Friends = () => {
             </div>
             <div className="space-y-4">
               {requests.map((request) => (
-                <div key={request._id} className="rounded-3xl border border-gray-200 bg-slate-50 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div key={request.id || request._id} className="rounded-3xl border border-gray-200 bg-slate-50 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <p className="text-sm text-gray-500">{request.sender.name}</p>
                     <h3 className="text-xl font-bold text-gray-900">{request.sender.email}</h3>
@@ -446,7 +449,7 @@ const Friends = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleAcceptRequest(request._id)}
+                    onClick={() => handleAcceptRequest(request.id || request._id)}
                     className="h-14 rounded-2xl bg-emerald-500 px-6 text-sm font-semibold text-white transition hover:bg-emerald-600"
                   >
                     Accept
@@ -487,7 +490,7 @@ const Friends = () => {
         <div className="grid lg:grid-cols-2 gap-6">
           {displayFriends.map((friend, index) => (
             <div
-              key={friend._id || index}
+              key={friend.id || friend._id || index}
               className="bg-white rounded-2xl md:rounded-[30px] p-4 md:p-6 shadow-lg border border-gray-100 hover:shadow-2xl transition"
             >
               <div className="flex flex-row items-center justify-between gap-4">
@@ -742,7 +745,7 @@ const Friends = () => {
               ) : (
                 <div className="space-y-3 md:space-y-4">
                   {detailExpenses.map((expense) => (
-                    <div key={expense._id} className="rounded-xl md:rounded-[28px] border border-gray-200 p-4 md:p-5">
+                    <div key={expense.id || expense._id} className="rounded-xl md:rounded-[28px] border border-gray-200 p-4 md:p-5">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
                         <div>
                           <p className="text-[10px] md:text-sm text-gray-500">{new Date(expense.date).toLocaleDateString()}</p>
@@ -753,7 +756,7 @@ const Friends = () => {
                           </p>
                         </div>
                         <div className="text-left md:text-right mt-2 md:mt-0 border-t md:border-t-0 pt-3 md:pt-0 border-gray-100">
-                          <p className={`text-xl md:text-3xl font-black ${String(expense.paidBy?._id || expense.paidBy) === String(detailFriend._id) ? 'text-emerald-500' : 'text-red-500'}`}>
+                          <p className={`text-xl md:text-3xl font-black ${String(expense.paidBy?.id || expense.paidBy?._id || expense.paidBy) === String(detailFriend.id || detailFriend._id) ? 'text-emerald-500' : 'text-red-500'}`}>
                             ₹{Number(expense.amount).toLocaleString()}
                           </p>
                           <p className="text-[10px] md:text-sm text-gray-500 mt-0.5 md:mt-1">{expense.splitType || 'Shared expense'}</p>

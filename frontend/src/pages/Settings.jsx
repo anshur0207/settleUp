@@ -31,6 +31,7 @@ const Settings = () => {
   const [exportGroups, setExportGroups] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -142,7 +143,7 @@ const Settings = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setStatusMessage('Password updated successfully');
+      setPasswordModalOpen(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to update password');
     } finally {
@@ -261,10 +262,10 @@ const Settings = () => {
                 <div className="flex-1 grid md:grid-cols-2 gap-5">
                   <Input label="Full Name" value={profile.name} onChange={(value) => handleChange('name', value)} />
                   <Input label="Username" value={profile.username} onChange={(value) => handleChange('username', value)} />
-                  <Input label="Email" value={profile.email} onChange={(value) => handleChange('email', value)} />
+                  <Input label="Email" value={profile.email} onChange={(value) => handleChange('email', value)} disabled />
                   <Input label="Phone" value={profile.phone} onChange={(value) => handleChange('phone', value)} />
                   <Input label="Country" value="India" disabled />
-                  <Input label="Currency" value={profile.currency} onChange={(value) => handleChange('currency', value)} />
+                  <Input label="Currency" value="INR" disabled />
                 </div>
               </div>
 
@@ -376,6 +377,24 @@ const Settings = () => {
               className="mt-6 w-full h-14 rounded-2xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition"
             >
               Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-white rounded-[32px] shadow-2xl p-8 text-center relative">
+            <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
+              <span className="text-4xl">✅</span>
+            </div>
+            <h2 className="text-3xl font-black text-gray-900 mb-2">Success!</h2>
+            <p className="text-gray-500 mb-6">Your password has been updated successfully.</p>
+            <button
+              onClick={() => setPasswordModalOpen(false)}
+              className="w-full h-14 rounded-2xl bg-emerald-500 text-white font-bold shadow-lg hover:bg-emerald-600 transition"
+            >
+              Close
             </button>
           </div>
         </div>

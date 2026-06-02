@@ -106,7 +106,7 @@ const getGroup = async (req, res, next) => {
       where: { id: req.params.id },
       include: {
         members: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },
-        pendingMembers: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },
+        pendingMembers: true,
         expenses: {
           include: {
             paidBy: { select: { id: true, name: true, avatar: true, email: true } },
