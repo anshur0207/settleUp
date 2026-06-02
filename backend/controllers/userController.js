@@ -47,7 +47,19 @@ const updateProfile = async (req, res, next) => {
 
     const data = {};
 
+    if (updates.name !== undefined) {
+      if (!updates.name.trim()) {
+        return res.status(400).json({ message: 'Name cannot be blank' });
+      }
+      if (!/^[A-Za-z\s]+$/.test(updates.name.trim())) {
+        return res.status(400).json({ message: 'Name can only contain alphabets and spaces' });
+      }
+    }
+
     if (updates.currentPassword && updates.newPassword) {
+      if (!/^(?=.*[!@#$%^&*(),.?":{}|<>]).{6,}$/.test(updates.newPassword)) {
+        return res.status(400).json({ message: 'New password must be at least 6 characters and include a special character' });
+      }
       const isMatch = await bcrypt.compare(updates.currentPassword, user.password);
       if (!isMatch) {
         return res.status(400).json({ message: 'Current password is incorrect' });

@@ -193,12 +193,14 @@ const Analytics = () => {
 function SummaryCard({ title, value, icon, positive, negative }) {
   return (
     <div className="bg-white rounded-[28px] p-7 shadow-lg border border-gray-100">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-gray-500">{title}</p>
-          <h2 className={`text-4xl font-black mt-2 ${positive ? 'text-emerald-500' : negative ? 'text-red-500' : 'text-gray-900'}`}>{value}</h2>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm md:text-base text-gray-500 truncate">{title}</p>
+          <h2 className={`text-2xl md:text-4xl font-black mt-1 md:mt-2 truncate ${positive ? 'text-emerald-500' : negative ? 'text-red-500' : 'text-gray-900'}`}>
+            {value}
+          </h2>
         </div>
-        <div className={`w-16 h-16 rounded-3xl flex items-center justify-center ${positive ? 'bg-emerald-100 text-emerald-600' : negative ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-600'}`}>
+        <div className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-3xl flex items-center justify-center text-2xl md:text-3xl ${positive ? 'bg-emerald-100 text-emerald-600' : negative ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-600'}`}>
           {icon}
         </div>
       </div>

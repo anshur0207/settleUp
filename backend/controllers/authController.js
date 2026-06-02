@@ -60,6 +60,12 @@ const registerUser = async (req, res, next) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
+    if (!/^[A-Za-z\s]+$/.test(name.trim())) {
+      return res.status(400).json({ message: 'Name can only contain alphabets and spaces' });
+    }
+    if (!/^(?=.*[!@#$%^&*(),.?":{}|<>]).{6,}$/.test(password)) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters and include a special character' });
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ message: 'Invalid email address' });

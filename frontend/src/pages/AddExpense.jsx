@@ -135,6 +135,12 @@ export default function AddExpense() {
       return;
     }
 
+    if (Number(amount) <= 0) {
+      setError('Amount must be greater than 0.');
+      setLoading(false);
+      return;
+    }
+
     if (splitType === 'exact' || splitType === 'unequal') {
       if (exactTotal !== Number(amount)) {
         setError(`Exact amounts must sum to ${amount}`);
