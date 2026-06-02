@@ -60,15 +60,15 @@ export default function AddExpense() {
         setTitle(expense.title || '');
         setAmount(expense.amount?.toString() || '');
         setCurrency(expense.currency || user?.currency || 'INR');
-        setGroupId(expense.group?._id || '');
+        setGroupId(expense.group?.id || expense.group?._id || '');
         setNotes(expense.notes || '');
         setSelectedCategory(expense.category || categories[0]);
-        setSelectedPayer(expense.paidBy?._id || expense.paidBy || userId);
+        setSelectedPayer(expense.paidBy?.id || expense.paidBy?._id || expense.paidBy || userId);
         setDate(expense.date ? new Date(expense.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
         setSplitType(expense.splitType || 'equal');
         setMemberSplits(
           (expense.splits || []).map((split) => ({
-            user: split.user?._id || split.user,
+            user: split.user?.id || split.user?._id || split.user,
             name: split.user?.name || '',
             paid: split.paid || 0,
             share: split.share || (expense.splitType === 'exact' || expense.splitType === 'unequal' ? split.owed : 0),
@@ -86,7 +86,7 @@ export default function AddExpense() {
   }, [expenseId, user?.currency, userId]);
 
   const selectedGroup = useMemo(
-    () => groups.find((group) => group._id === groupId) || null,
+    () => groups.find((group) => (group.id || group._id) === groupId) || null,
     [groupId, groups]
   );
 
@@ -97,10 +97,10 @@ export default function AddExpense() {
 
     const members = selectedGroup?.members?.length
       ? selectedGroup.members
-      : [{ _id: userId, name: user?.name || 'You' }];
+      : [{ _id: userId, id: userId, name: user?.name || 'You' }];
 
     const initialSplits = members.map((member) => ({
-      user: member._id,
+      user: member.id || member._id,
       name: member.name,
       paid: 0,
       share: 0,
@@ -109,7 +109,7 @@ export default function AddExpense() {
     }));
 
     setMemberSplits(initialSplits);
-    setSelectedPayer(members.some((member) => String(member._id) === String(userId)) ? userId : members[0]._id);
+    setSelectedPayer(members.some((member) => String(member.id || member._id) === String(userId)) ? userId : (members[0].id || members[0]._id));
   }, [selectedGroup, userId, user?.name, isEditMode, memberSplits.length]);
 
   const handleMemberFieldChange = (index, field, value) => {
@@ -229,7 +229,7 @@ export default function AddExpense() {
               >
                 <option value="">Personal Expense</option>
                 {groups.map((group) => (
-                  <option key={group._id} value={group._id}>
+                  <option key={group.id || group._id} value={group.id || group._id}>
                     {group.name}
                   </option>
                 ))}
@@ -264,20 +264,22 @@ export default function AddExpense() {
           <div className="mt-10">
             <label className="text-sm font-semibold text-gray-500 uppercase tracking-[2px]">Paid By</label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-3 md:mt-4">
-              {(selectedGroup?.members || [{ _id: userId, name: user?.name || 'You' }]).map((member) => (
+              {(selectedGroup?.members || [{ _id: userId, id: userId, name: user?.name || 'You' }]).map((member) => {
+                const memberId = member.id || member._id;
+                return (
                 <button
-                  key={member._id}
+                  key={memberId}
                   type="button"
-                  onClick={() => setSelectedPayer(member._id)}
-                  className={`h-12 md:h-14 rounded-xl md:rounded-2xl font-bold transition flex items-center justify-center gap-2 text-sm md:text-base ${member._id === selectedPayer
+                  onClick={() => setSelectedPayer(memberId)}
+                  className={`h-12 md:h-14 rounded-xl md:rounded-2xl font-bold transition flex items-center justify-center gap-2 text-sm md:text-base ${memberId === selectedPayer
                       ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 shadow-sm'
                     }`}
                 >
-                  {member._id === selectedPayer && <CheckCircle2 size={18} />}
+                  {memberId === selectedPayer && <CheckCircle2 size={18} />}
                   {member.name}
                 </button>
-              ))}
+              )})}
             </div>
           </div>
 
@@ -444,7 +446,7 @@ export default function AddExpense() {
                 onClick={() => navigate('/dashboard')}
                 className="h-14 md:h-16 w-full md:w-auto px-6 md:px-10 rounded-xl md:rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 transition font-bold text-gray-600 text-base md:text-lg shadow-sm shrink-0"
               >
-                Save as Draft
+                Cancel
               </button>
             )}
           </div>
@@ -465,7 +467,7 @@ export default function AddExpense() {
               <PreviewItem title="Expense" value={title || 'Dinner with friends'} />
               <PreviewItem title="Category" value={selectedCategory} />
               <PreviewItem title="Amount" value={amount ? `₹ ${Number(amount).toLocaleString()}` : '₹ 0'} />
-              <PreviewItem title="Paid By" value={(selectedGroup?.members || [{ name: user?.name || 'You' }]).find((member) => String(member._id) === String(selectedPayer))?.name || user?.name || 'You'} />
+              <PreviewItem title="Paid By" value={(selectedGroup?.members || [{ name: user?.name || 'You' }]).find((member) => String(member.id || member._id) === String(selectedPayer))?.name || user?.name || 'You'} />
               <PreviewItem title="Split Type" value={splitTypes.find(t => t.id === splitType)?.label || 'Equally'} />
             </div>
           </div>

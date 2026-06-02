@@ -1,6 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prisma');
+const { OAuth2Client } = require('google-auth-library');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const createToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
@@ -57,9 +60,16 @@ const registerUser = async (req, res, next) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email address' });
+    }
+    if (!email.toLowerCase().trim().endsWith('@gmail.com')) {
+      return res.status(400).json({ message: 'Only @gmail.com emails are allowed for signup' });
+    }
     const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (existing) {
-      return res.status(400).json({ message: 'Email already registered' });
+      return res.status(400).json({ message: 'Email already present' });
     }
     const hashed = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
@@ -127,4 +137,53 @@ const forgotPassword = async (req, res) => {
   res.json({ message: `If ${email} exists, you will receive reset instructions.` });
 };
 
-module.exports = { registerUser, loginUser, logoutUser, refreshToken, forgotPassword };
+const googleAuth = async (req, res, next) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ message: 'Missing Google credential' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    
+    if (!payload || !payload.email) {
+      return res.status(400).json({ message: 'Invalid Google token' });
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    
+    if (!email.endsWith('@gmail.com')) {
+      return res.status(400).json({ message: 'Only @gmail.com emails are allowed for signup' });
+    }
+
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      const hashed = await bcrypt.hash(Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8), 12);
+      user = await prisma.user.create({
+        data: {
+          name: payload.name || 'Google User',
+          email: email,
+          password: hashed,
+          avatar: payload.picture || '',
+          currency: 'INR',
+        }
+      });
+      await syncPendingGroupInvites(user);
+    } else {
+      await syncPendingGroupInvites(user);
+    }
+
+    const token = createToken(user.id);
+    res.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    next(error);
+  }
+};
+
+module.exports = { registerUser, loginUser, logoutUser, refreshToken, forgotPassword, googleAuth };

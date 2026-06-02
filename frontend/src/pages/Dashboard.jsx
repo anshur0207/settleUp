@@ -95,14 +95,14 @@ export default function SettleUpDashboard() {
       }
 
       expenseData.forEach((expense) => {
-        const paidById = expense.paidBy?._id || expense.paidBy;
-        const splitForUser = expense.splits?.find((split) => String(split.user?._id || split.user) === String(userId));
+        const paidById = expense.paidBy?.id || expense.paidBy?._id || expense.paidBy;
+        const splitForUser = expense.splits?.find((split) => String(split.user?.id || split.user?._id || split.user) === String(userId));
 
         if (String(paidById) === String(userId)) {
           expense.splits
-            .filter((split) => String(split.user?._id || split.user) !== String(userId))
+            .filter((split) => String(split.user?.id || split.user?._id || split.user) !== String(userId))
             .forEach((split) => {
-              const splitUserId = split.user?._id || split.user;
+              const splitUserId = split.user?.id || split.user?._id || split.user;
               const splitName = split.user?.name || 'Friend';
               const amount = Number(split.owed ?? split.amount ?? 0);
 
@@ -123,8 +123,8 @@ export default function SettleUpDashboard() {
       });
 
       settlementData.forEach((settlement) => {
-        const payerId = settlement.payer?._id || settlement.payer;
-        const payeeId = settlement.payee?._id || settlement.payee;
+        const payerId = settlement.payer?.id || settlement.payer?._id || settlement.payer;
+        const payeeId = settlement.payee?.id || settlement.payee?._id || settlement.payee;
         const amount = Number(settlement.amount ?? 0);
 
         if (String(payerId) === String(userId)) {
@@ -365,7 +365,7 @@ export default function SettleUpDashboard() {
                 <div className="space-y-3 md:space-y-5">
                   {recentExpenses.length ? (
                     recentExpenses.map((expense) => (
-                      <div key={expense._id} className="flex flex-row items-center justify-between p-4 md:p-5 rounded-2xl md:rounded-3xl hover:bg-gray-50 transition border border-gray-100 gap-2">
+                      <div key={expense.id || expense._id} className="flex flex-row items-center justify-between p-4 md:p-5 rounded-2xl md:rounded-3xl hover:bg-gray-50 transition border border-gray-100 gap-2">
                         <div className="flex items-center gap-3 md:gap-4">
                           <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl md:text-3xl shrink-0">
                             🧾
@@ -380,18 +380,18 @@ export default function SettleUpDashboard() {
                             <h3 className="text-lg md:text-2xl font-black">₹{expense.amount}</h3>
                             <p className="text-[10px] md:text-sm text-gray-500">{new Date(expense.date).toLocaleDateString()}</p>
                           </div>
-                          {String(expense.createdBy?._id || expense.createdBy) === String(userId) && (
+                          {String(expense.createdBy?.id || expense.createdBy?._id || expense.createdBy) === String(userId) && (
                             <div className="flex items-center gap-1 md:gap-2">
                               <button
-                                onClick={() => navigate(`/expenses/edit/${expense._id}?redirect=dashboard`)}
+                                onClick={() => navigate(`/expenses/edit/${expense.id || expense._id}?redirect=dashboard`)}
                                 className="p-2 md:p-2.5 rounded-lg md:rounded-xl border border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition text-gray-400"
                                 title="Edit Expense"
                               >
                                 <Edit className="w-4 h-4 md:w-5 md:h-5" />
                               </button>
                               <button
-                                onClick={() => handleDeleteExpense(expense._id)}
-                                disabled={deletingExpenseId === expense._id}
+                                onClick={() => handleDeleteExpense(expense.id || expense._id)}
+                                disabled={deletingExpenseId === (expense.id || expense._id)}
                                 className="p-2 md:p-2.5 rounded-lg md:rounded-xl border border-gray-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition text-gray-400 disabled:opacity-60"
                                 title="Delete Expense"
                               >
@@ -426,8 +426,8 @@ export default function SettleUpDashboard() {
                     {dashboardGroups.length ? (
                       dashboardGroups.map((group) => (
                         <button
-                          key={group._id}
-                          onClick={() => navigate(`/groups/${group._id}`)}
+                          key={group.id || group._id}
+                          onClick={() => navigate(`/groups/${group.id || group._id}`)}
                           className="flex items-center justify-between w-full p-3 md:p-4 rounded-xl md:rounded-2xl bg-gray-50 hover:bg-emerald-50 transition"
                         >
                           <div className="flex items-center gap-3 md:gap-4">

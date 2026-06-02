@@ -234,7 +234,7 @@ export default function Groups() {
           {filteredGroups.length > 0 ? (
             filteredGroups.map((group, index) => (
               <div
-                key={group._id}
+                key={group.id || group._id}
                 className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100 hover:shadow-2xl transition"
               >
                 <div className="flex flex-row items-center justify-between gap-4 md:gap-0">
@@ -282,14 +282,14 @@ export default function Groups() {
                 <div className="flex flex-row gap-3 md:grid md:grid-cols-2 md:gap-4 mt-6 md:mt-8">
                   <button
                     type="button"
-                    onClick={() => navigate(`/groups/${group._id}`)}
+                    onClick={() => navigate(`/groups/${group.id || group._id}`)}
                     className="flex-1 h-12 md:h-14 rounded-xl md:rounded-2xl bg-emerald-500 hover:bg-emerald-600 transition text-white text-sm md:text-base font-semibold shadow-md"
                   >
                     View Group
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/expenses/new?groupId=${group._id}`)}
+                    onClick={() => navigate(`/expenses/new?groupId=${group.id || group._id}`)}
                     className="flex-1 h-12 md:h-14 rounded-xl md:rounded-2xl border border-gray-200 hover:bg-gray-50 transition text-sm md:text-base font-semibold text-gray-700"
                   >
                     Add Expense
