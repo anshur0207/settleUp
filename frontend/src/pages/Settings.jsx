@@ -24,8 +24,10 @@ const Settings = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [error, setError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [saving, setSaving] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportGroups, setExportGroups] = useState([]);
@@ -77,10 +79,10 @@ const Settings = () => {
   };
 
   const handleSaveProfile = async () => {
-    setError('');
-    setStatusMessage('');
+    setProfileError('');
+    setProfileSuccess('');
     if (!profile.name.trim()) {
-      setError('Name cannot be blank');
+      setProfileError('Name cannot be blank');
       return;
     }
     setSaving(true);
@@ -118,27 +120,27 @@ const Settings = () => {
         currency: updatedUser.currency,
         avatar: updatedUser.avatar,
       });
-      setStatusMessage('Profile updated successfully');
+      setProfileSuccess('Profile updated successfully');
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to update profile');
+      setProfileError(err.response?.data?.message || 'Unable to update profile');
     } finally {
       setSaving(false);
     }
   };
 
   const handleUpdatePassword = async () => {
-    setError('');
-    setStatusMessage('');
+    setPasswordError('');
+    setPasswordSuccess('');
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setError('Please fill all password fields');
+      setPasswordError('Please fill all password fields');
       return;
     }
     if (!/^(?=.*[!@#$%^&*(),.?":{}|<>]).{6,}$/.test(newPassword)) {
-      setError('New password must be at least 6 characters and include a special character');
+      setPasswordError('New password must be at least 6 characters and include a special character');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('New passwords must match');
+      setPasswordError('New passwords must match');
       return;
     }
     setSaving(true);
@@ -153,7 +155,7 @@ const Settings = () => {
       setConfirmPassword('');
       setPasswordModalOpen(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to update password');
+      setPasswordError(err.response?.data?.message || 'Unable to update password');
     } finally {
       setSaving(false);
     }
@@ -294,6 +296,12 @@ const Settings = () => {
                   Cancel
                 </button>
               </div>
+
+              {(profileSuccess || profileError) && (
+                <div className={`mt-6 rounded-2xl p-4 ${profileError ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+                  {profileError || profileSuccess}
+                </div>
+              )}
             </div>
 
             <div className="grid xl:grid-cols-2 gap-6">
@@ -312,6 +320,11 @@ const Settings = () => {
                 >
                   Update Password
                 </button>
+                {(passwordSuccess || passwordError) && (
+                  <div className={`mt-4 rounded-2xl p-4 ${passwordError ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+                    {passwordError || passwordSuccess}
+                  </div>
+                )}
               </div>
               <div className="space-y-6">
                 <div className="bg-white rounded-[32px] p-8 shadow-lg border border-gray-100">
@@ -344,11 +357,6 @@ const Settings = () => {
 
 
 
-            {(statusMessage || error) && (
-              <div className={`rounded-3xl p-5 ${error ? 'bg-rose-50 border-2 border-rose-200 text-rose-700' : 'bg-emerald-50 border-2 border-emerald-200 text-emerald-700'}`}>
-                {error || statusMessage}
-              </div>
-            )}
           </div>
         </div>
       </div>
