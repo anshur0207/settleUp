@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
 const xss = require("xss-clean");
 const dotenv = require("dotenv");
+const compression = require("compression");
 
 // Routes
 const authRoutes = require("./routes/authRoutes");
@@ -60,6 +61,7 @@ app.use(
 BODY PARSER
 ========================================
 */
+app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -145,3 +147,4 @@ async function connectDB() {
 }
 
 connectDB();
+require('./utils/keepAlive');

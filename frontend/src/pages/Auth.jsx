@@ -292,7 +292,7 @@ export default function AuthPage() {
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={handleGoogleError}
-                  useOneTap={activeTab === "login"}
+                  use_fedcm_for_prompt={true}
                   text={activeTab === "login" ? "signin_with" : "signup_with"}
                 />
               </div>
