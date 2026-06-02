@@ -84,7 +84,13 @@ const registerUser = async (req, res, next) => {
     
     await syncPendingGroupInvites(user);
     const token = createToken(user.id);
-    res.status(201).json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.status(201).json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
   } catch (error) {
     next(error);
   }
@@ -106,14 +112,24 @@ const loginUser = async (req, res, next) => {
     }
     await syncPendingGroupInvites(user);
     const token = createToken(user.id);
-    res.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
   } catch (error) {
     next(error);
   }
 };
 
 const logoutUser = (req, res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none'
+  });
   res.json({ message: 'Logged out successfully' });
 };
 
@@ -129,7 +145,13 @@ const refreshToken = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
     const newToken = createToken(user.id);
-    res.json({ token: newToken });
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.json({ message: 'Token refreshed successfully' });
   } catch (error) {
     next(error);
   }
@@ -185,7 +207,13 @@ const googleAuth = async (req, res, next) => {
     }
 
     const token = createToken(user.id);
-    res.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar } });
   } catch (error) {
     console.error('Google Auth Error:', error);
     next(error);
