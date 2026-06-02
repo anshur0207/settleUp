@@ -99,6 +99,14 @@ app.get("/health", (req, res) => {
 API ROUTES
 ========================================
 */
+app.use("/api", (req, res, next) => {
+  // Prevent basic external scripts/Postman from accessing the API
+  if (req.headers['x-app-client'] !== 'settleup-web') {
+    return res.status(403).json({ message: "Forbidden: Access denied." });
+  }
+  next();
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/friends", friendRoutes);

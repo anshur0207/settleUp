@@ -15,6 +15,9 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
+  // Add custom client header to prevent basic external scripts
+  config.headers['x-app-client'] = 'settleup-web';
+
   return config;
 });
 
