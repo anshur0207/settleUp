@@ -22,12 +22,12 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   const touristImages = [
-    "https://loremflickr.com/1200/800/india?random=1",
-    "https://loremflickr.com/1200/800/nepal?random=2",
-    "https://loremflickr.com/1200/800/himalayas?random=3",
-    "https://loremflickr.com/1200/800/ladakh?random=4",
-    "https://loremflickr.com/1200/800/spiti?random=5",
-    "https://loremflickr.com/1200/800/goa?random=6"
+    "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1200&auto=format&fit=crop", // Travel/Van
+    "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1200&auto=format&fit=crop", // Mountains
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop", // Beach
+    "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=1200&auto=format&fit=crop", // Paris/City
+    "https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?q=80&w=1200&auto=format&fit=crop", // Tropical beach
+    "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1200&auto=format&fit=crop"  // Lake/Boat
   ];
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
 
