@@ -191,8 +191,8 @@ export default function SettleUpDashboard() {
         {/* Topbar */}
         <div className="flex flex-row items-start justify-between gap-4 md:gap-5 mb-8 md:mb-10">
           <div className="flex-1 min-w-0">
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight truncate">
-              Welcome Back, <span className="text-emerald-500">{user?.name || 'User'} 👋</span>
+            <h1 className="text-2xl md:text-4xl font-black tracking-tight truncate">
+              Welcome Back, <span className="text-emerald-500 hidden md:inline">{user?.name || 'User'}</span><span className="text-emerald-500 md:hidden">{user?.name?.split(' ')[0] || 'User'}</span> 👋
             </h1>
             <p className="text-gray-500 mt-1 md:mt-2 text-sm md:text-lg">Track your expenses and settle with friends easily.</p>
           </div>
@@ -339,7 +339,7 @@ export default function SettleUpDashboard() {
                   {recentExpenses.length ? (
                     recentExpenses.map((expense) => (
                       <div key={expense.id || expense._id} className="flex flex-row items-center justify-between p-4 md:p-5 rounded-2xl md:rounded-3xl hover:bg-gray-50 transition border border-gray-100 gap-2">
-                        <div className="flex items-center gap-3 md:gap-4">
+                        <div className="flex flex-1 items-center gap-3 md:gap-4 min-w-0">
                           <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl md:text-3xl shrink-0">
                             🧾
                           </div>
