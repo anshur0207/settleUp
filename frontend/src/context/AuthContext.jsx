@@ -6,22 +6,15 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem('settleup_user');
-    return raw ? JSON.parse(raw) : null;
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('settleup_token'));
-
-  useEffect(() => {
-    if (token) {
-      api.defaults.headers.common.Authorization = `Bearer ${token}`;
-    } else {
-      delete api.defaults.headers.common.Authorization;
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
     }
-  }, [token]);
+  });
 
-  const login = ({ token: newToken, user: authUser }) => {
-    localStorage.setItem('settleup_token', newToken);
+  const login = ({ user: authUser }) => {
     localStorage.setItem('settleup_user', JSON.stringify(authUser));
-    setToken(newToken);
     setUser(authUser);
   };
 
@@ -31,14 +24,30 @@ export const AuthProvider = ({ children }) => {
     setUser(nextUser);
   };
 
-  const logout = () => {
-    localStorage.removeItem('settleup_token');
+  const logout = async () => {
+    try {
+      await api.post('auth/logout');
+    } catch (err) {
+      console.error('Logout API failed:', err);
+    }
     localStorage.removeItem('settleup_user');
-    setToken(null);
     setUser(null);
   };
 
-  const value = { user, token, login, updateUser, logout };
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      // Clear local state if backend says cookie is invalid/expired
+      localStorage.removeItem('settleup_user');
+      setUser(null);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, []);
+
+  const value = { user, login, updateUser, logout };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

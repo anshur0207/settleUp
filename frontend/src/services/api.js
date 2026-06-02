@@ -9,16 +9,20 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('settleup_token');
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
   // Add custom client header to prevent basic external scripts
   config.headers['x-app-client'] = 'settleup-web';
-
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token expired or invalid (HttpOnly cookie), trigger logout
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;
