@@ -1,22 +1,16 @@
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Edit, Trash2, Menu, X } from 'lucide-react';
 import api from '../services/api.js';
 import LoadingAndErrorStatus from './LoadingAndErrorStates.jsx';
+import { useQuery } from '@tanstack/react-query';
 
 export default function SettleUpDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const userId = user?._id || user?.id;
-  const [groups, setGroups] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [friendBalances, setFriendBalances] = useState([]);
-  const [summary, setSummary] = useState({ total: 0, owe: 0, owed: 0 });
-  const [status, setStatus] = useState('loading');
-  const [statusMessage, setStatusMessage] = useState('Fetching latest expenses, balances and groups.');
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [friendReqCount, setFriendReqCount] = useState(0);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -63,124 +57,104 @@ export default function SettleUpDashboard() {
     }
   };
 
-  const loadDashboard = async () => {
-    setStatus('loading');
-    setStatusMessage('Fetching latest expenses, balances and groups.');
-
-    try {
-      // Single API call replaces 5 separate calls
+  const { data: dashboardData, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['dashboard', userId],
+    queryFn: async () => {
       const { data } = await api.get('dashboard');
-      
-      const groupData = data.groups || [];
-      const expenseData = data.expenses || [];
-      const settlementData = data.settlements || [];
+      return data;
+    },
+    enabled: !!user,
+    staleTime: 60000,
+  });
 
-      setUnreadNotifCount(data.unreadNotificationCount || 0);
+  const loadDashboard = () => refetch();
+  const status = isLoading ? 'loading' : isError ? 'network' : 'success';
+  const statusMessage = isError ? (error?.response?.data?.message || 'Unable to connect to the server.') : 'Data loaded successfully.';
 
-      const friendReqData = data.friendRequests || [];
-      setFriendReqCount(friendReqData.length);
+  const { groups, expenses, unreadNotifCount, friendReqCount, friendBalances, summary } = useMemo(() => {
+    if (!dashboardData) return { groups: [], expenses: [], unreadNotifCount: 0, friendReqCount: 0, friendBalances: [], summary: { total: 0, owe: 0, owed: 0 } };
 
-      setGroups(groupData);
+    const groupData = dashboardData.groups || [];
+    const expenseData = dashboardData.expenses || [];
+    const settlementData = dashboardData.settlements || [];
+    const friendReqData = dashboardData.friendRequests || [];
 
-      const userId = user?._id || user?.id;
-      const balanceMap = {};
-
-      if (expenseData.length === 0) {
-        setSummary({ total: 0, owe: 0, owed: 0 });
-        setFriendBalances([]);
-        setExpenses([]);
-        setStatus('success');
-        setStatusMessage('Data loaded successfully.');
-        return;
-      }
-
-      expenseData.forEach((expense) => {
-        const paidById = expense.paidBy?.id || expense.paidBy?._id || expense.paidBy;
-        const splitForUser = expense.splits?.find((split) => String(split.user?.id || split.user?._id || split.user) === String(userId));
-
-        if (String(paidById) === String(userId)) {
-          expense.splits
-            .filter((split) => String(split.user?.id || split.user?._id || split.user) !== String(userId))
-            .forEach((split) => {
-              const splitUserId = split.user?.id || split.user?._id || split.user;
-              const splitName = split.user?.name || 'Friend';
-              const amount = Number(split.owed ?? split.amount ?? 0);
-
-              if (!balanceMap[splitUserId]) {
-                balanceMap[splitUserId] = { id: splitUserId, name: splitName, amount: 0 };
-              }
-              balanceMap[splitUserId].amount += amount;
-            });
-        } else if (splitForUser) {
-          const amount = Number(splitForUser.owed ?? splitForUser.amount ?? 0);
-          const paidByName = expense.paidBy?.name || 'Friend';
-
-          if (!balanceMap[paidById]) {
-            balanceMap[paidById] = { id: paidById, name: paidByName, amount: 0 };
-          }
-          balanceMap[paidById].amount -= amount;
-        }
-      });
-
-      settlementData.forEach((settlement) => {
-        const payerId = settlement.payer?.id || settlement.payer?._id || settlement.payer;
-        const payeeId = settlement.payee?.id || settlement.payee?._id || settlement.payee;
-        const amount = Number(settlement.amount ?? 0);
-
-        if (String(payerId) === String(userId)) {
-          const payeeName = settlement.payee?.name || 'Friend';
-          if (!balanceMap[payeeId]) {
-            balanceMap[payeeId] = { id: payeeId, name: payeeName, amount: 0 };
-          }
-          balanceMap[payeeId].amount += amount;
-        } else if (String(payeeId) === String(userId)) {
-          const payerName = settlement.payer?.name || 'Friend';
-          if (!balanceMap[payerId]) {
-            balanceMap[payerId] = { id: payerId, name: payerName, amount: 0 };
-          }
-          balanceMap[payerId].amount -= amount;
-        }
-      });
-
-      const totals = Object.values(balanceMap).reduce(
-        (acc, item) => {
-          if (item.amount >= 0) acc.owed += item.amount;
-          else acc.owe += Math.abs(item.amount);
-          return acc;
-        },
-        { owed: 0, owe: 0 }
-      );
-
-      setSummary({ total: totals.owed - totals.owe, owe: totals.owe, owed: totals.owed });
-
-      const activeFriendBalances = Object.values(balanceMap)
-        .filter((friend) => friend.amount !== 0)
-        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
-        .slice(0, 2);
-
-      setFriendBalances(activeFriendBalances);
-      setExpenses(expenseData.slice(0, 4));
-      setStatus('success');
-      setStatusMessage('Data loaded successfully.');
-    } catch (err) {
-      console.error('Dashboard load failed', err);
-      const response = err?.response;
-      if (response) {
-        const serverMessage = response.data?.message || 'Something went wrong while fetching your data.';
-        setStatus(response.status >= 500 ? 'database' : 'network');
-        setStatusMessage(serverMessage);
-      } else {
-        setStatus('network');
-        setStatusMessage('Unable to connect to the server. Please check your internet connection.');
-      }
+    const balanceMap = {};
+    if (expenseData.length === 0) {
+      return { groups: groupData, expenses: [], unreadNotifCount: dashboardData.unreadNotificationCount || 0, friendReqCount: friendReqData.length, friendBalances: [], summary: { total: 0, owe: 0, owed: 0 } };
     }
-  };
 
-  useEffect(() => {
-    if (user) {
-      loadDashboard();
-    }
-  }, [user]);
+    expenseData.forEach((expense) => {
+      const paidById = expense.paidBy?.id || expense.paidBy?._id || expense.paidBy;
+      const splitForUser = expense.splits?.find((split) => String(split.user?.id || split.user?._id || split.user) === String(userId));
+
+      if (String(paidById) === String(userId)) {
+        expense.splits
+          .filter((split) => String(split.user?.id || split.user?._id || split.user) !== String(userId))
+          .forEach((split) => {
+            const splitUserId = split.user?.id || split.user?._id || split.user;
+            const splitName = split.user?.name || 'Friend';
+            const amount = Number(split.owed ?? split.amount ?? 0);
+
+            if (!balanceMap[splitUserId]) {
+              balanceMap[splitUserId] = { id: splitUserId, name: splitName, amount: 0 };
+            }
+            balanceMap[splitUserId].amount += amount;
+          });
+      } else if (splitForUser) {
+        const amount = Number(splitForUser.owed ?? splitForUser.amount ?? 0);
+        const paidByName = expense.paidBy?.name || 'Friend';
+
+        if (!balanceMap[paidById]) {
+          balanceMap[paidById] = { id: paidById, name: paidByName, amount: 0 };
+        }
+        balanceMap[paidById].amount -= amount;
+      }
+    });
+
+    settlementData.forEach((settlement) => {
+      const payerId = settlement.payer?.id || settlement.payer?._id || settlement.payer;
+      const payeeId = settlement.payee?.id || settlement.payee?._id || settlement.payee;
+      const amount = Number(settlement.amount ?? 0);
+
+      if (String(payerId) === String(userId)) {
+        const payeeName = settlement.payee?.name || 'Friend';
+        if (!balanceMap[payeeId]) {
+          balanceMap[payeeId] = { id: payeeId, name: payeeName, amount: 0 };
+        }
+        balanceMap[payeeId].amount += amount;
+      } else if (String(payeeId) === String(userId)) {
+        const payerName = settlement.payer?.name || 'Friend';
+        if (!balanceMap[payerId]) {
+          balanceMap[payerId] = { id: payerId, name: payerName, amount: 0 };
+        }
+        balanceMap[payerId].amount -= amount;
+      }
+    });
+
+    const totals = Object.values(balanceMap).reduce(
+      (acc, item) => {
+        if (item.amount >= 0) acc.owed += item.amount;
+        else acc.owe += Math.abs(item.amount);
+        return acc;
+      },
+      { owed: 0, owe: 0 }
+    );
+
+    const activeFriendBalances = Object.values(balanceMap)
+      .filter((friend) => friend.amount !== 0)
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+      .slice(0, 2);
+
+    return {
+      groups: groupData,
+      expenses: expenseData.slice(0, 4),
+      unreadNotifCount: dashboardData.unreadNotificationCount || 0,
+      friendReqCount: friendReqData.length,
+      friendBalances: activeFriendBalances,
+      summary: { total: totals.owed - totals.owe, owe: totals.owe, owed: totals.owed }
+    };
+  }, [dashboardData, userId]);
 
   const dashboardGroups = groups.slice(0, 3);
   const recentExpenses = expenses;

@@ -149,6 +149,7 @@ model ExpenseSplit {
 
   @@unique([expenseId, userId])
   @@index([userId])
+  @@index([expenseId])
 }
 
 model Settlement {
@@ -171,6 +172,8 @@ model Settlement {
   @@index([payerId])
   @@index([payeeId])
   @@index([groupId])
+  @@index([status])
+  @@index([groupId, status])
 }
 
 model ActivityLog {
