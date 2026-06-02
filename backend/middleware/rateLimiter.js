@@ -4,7 +4,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const limiter = rateLimit({
   windowMs: isProduction ? 15 * 60 * 1000 : 60 * 1000,
-  max: isProduction ? 120 : 1000,
+  max: isProduction ? 500 : 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later.',
