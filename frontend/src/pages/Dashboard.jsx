@@ -301,22 +301,22 @@ export default function SettleUpDashboard() {
           <>
             <div className="grid md:grid-cols-2 gap-4 md:gap-6 mb-8 md:mb-10">
               <div className="bg-white rounded-2xl md:rounded-[30px] p-5 md:p-7 shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm md:text-base text-gray-500">You Owe</p>
-                    <h2 className="text-3xl md:text-4xl font-black mt-1 md:mt-3 text-red-500">₹{summary.owe.toFixed(0)}</h2>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm md:text-base text-gray-500 truncate">You Owe</p>
+                    <h2 className="text-3xl md:text-4xl font-black mt-1 md:mt-3 truncate text-red-500">₹{summary.owe.toFixed(0)}</h2>
                   </div>
-                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl bg-red-100 flex items-center justify-center text-2xl md:text-3xl">📤</div>
+                  <div className="shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl bg-red-100 flex items-center justify-center text-2xl md:text-3xl">📤</div>
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl md:rounded-[30px] p-5 md:p-7 shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm md:text-base text-gray-500">You Are Owed</p>
-                    <h2 className="text-3xl md:text-4xl font-black mt-1 md:mt-3 text-emerald-500">₹{summary.owed.toFixed(0)}</h2>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm md:text-base text-gray-500 truncate">You Are Owed</p>
+                    <h2 className="text-3xl md:text-4xl font-black mt-1 md:mt-3 truncate text-emerald-500">₹{summary.owed.toFixed(0)}</h2>
                   </div>
-                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl bg-emerald-100 flex items-center justify-center text-2xl md:text-3xl">📥</div>
+                  <div className="shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl bg-emerald-100 flex items-center justify-center text-2xl md:text-3xl">📥</div>
                 </div>
               </div>
             </div>

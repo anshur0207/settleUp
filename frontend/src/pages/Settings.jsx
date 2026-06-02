@@ -79,6 +79,10 @@ const Settings = () => {
   const handleSaveProfile = async () => {
     setError('');
     setStatusMessage('');
+    if (!profile.name.trim()) {
+      setError('Name cannot be blank');
+      return;
+    }
     setSaving(true);
 
     try {
@@ -127,6 +131,10 @@ const Settings = () => {
     setStatusMessage('');
     if (!currentPassword || !newPassword || !confirmPassword) {
       setError('Please fill all password fields');
+      return;
+    }
+    if (!/^(?=.*[!@#$%^&*(),.?":{}|<>]).{6,}$/.test(newPassword)) {
+      setError('New password must be at least 6 characters and include a special character');
       return;
     }
     if (newPassword !== confirmPassword) {

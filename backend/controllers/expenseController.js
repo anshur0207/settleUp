@@ -5,6 +5,10 @@ const createExpense = async (req, res, next) => {
   try {
     const { title, amount, currency, paidBy, groupId, splitType, participants, notes, category, tags, billUrl, date } = req.body;
     
+    if (!amount || Number(amount) <= 0) {
+      return res.status(400).json({ message: 'Amount must be greater than 0' });
+    }
+    
     // We expect splitPayload to have { userId, paid, owed, share, percent, adjustment }
     const splitPayload = buildExpenseSplits({ amount, splitType, participants, paidBy });
     
@@ -83,6 +87,10 @@ const updateExpense = async (req, res, next) => {
     }
     
     const { title, amount, currency, paidBy, splitType, participants, notes, category, tags, billUrl, date } = req.body;
+    
+    if (amount !== undefined && Number(amount) <= 0) {
+      return res.status(400).json({ message: 'Amount must be greater than 0' });
+    }
     
     let splitsData = undefined;
     if (participants) {

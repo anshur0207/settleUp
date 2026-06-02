@@ -529,7 +529,7 @@ const Friends = () => {
               className="bg-white rounded-2xl md:rounded-[30px] p-4 md:p-6 shadow-lg border border-gray-100 hover:shadow-2xl transition"
             >
               <div className="flex flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3 md:gap-5">
+                <div className="flex flex-1 items-center gap-3 md:gap-5 min-w-0">
                   <img
                     src={friend.avatar}
                     alt={friend.name}
@@ -542,9 +542,9 @@ const Friends = () => {
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 min-w-0 max-w-[45%] md:max-w-[50%]">
                   <h2
-                    className={`text-xl md:text-3xl font-black ${friend.positive ? 'text-emerald-500' : 'text-red-500'}`}
+                    className={`text-xl md:text-3xl font-black truncate ${friend.positive ? 'text-emerald-500' : 'text-red-500'}`}
                   >
                     {friend.amount}
                   </h2>

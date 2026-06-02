@@ -60,6 +60,21 @@ export default function AuthPage() {
 
     try {
       if (activeTab === "signup") {
+        if (!form.name.trim()) {
+          setError("Name cannot be blank");
+          setLoading(false);
+          return;
+        }
+        if (!/^[A-Za-z\s]+$/.test(form.name.trim())) {
+          setError("Name can only contain alphabets and spaces");
+          setLoading(false);
+          return;
+        }
+        if (!/^(?=.*[!@#$%^&*(),.?":{}|<>]).{6,}$/.test(form.password)) {
+          setError("Password must be at least 6 characters and include a special character");
+          setLoading(false);
+          return;
+        }
         if (!form.email.toLowerCase().trim().endsWith('@gmail.com')) {
           setError('Only @gmail.com emails are allowed for signup');
           setLoading(false);
