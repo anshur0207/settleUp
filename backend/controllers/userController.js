@@ -133,4 +133,51 @@ const getUserBalances = async (req, res, next) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, uploadAvatar, searchUsers, getUserBalances };
+const getSuggestedUsers = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // 1. Get friends
+    const friendRequests = await prisma.friendRequest.findMany({
+      where: {
+        OR: [{ senderId: userId }, { receiverId: userId }],
+        status: 'accepted'
+      },
+      include: {
+        sender: { select: { id: true, name: true, email: true, avatar: true } },
+        receiver: { select: { id: true, name: true, email: true, avatar: true } }
+      }
+    });
+    
+    // 2. Get shared group members
+    const userGroups = await prisma.groupMember.findMany({
+      where: { userId },
+      select: { groupId: true }
+    });
+    const groupIds = userGroups.map(ug => ug.groupId);
+    
+    const sharedMembers = await prisma.groupMember.findMany({
+      where: { groupId: { in: groupIds }, userId: { not: userId } },
+      include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
+    });
+    
+    // Merge and deduplicate
+    const usersMap = new Map();
+    
+    friendRequests.forEach(req => {
+      const friend = String(req.sender.id) === String(userId) ? req.receiver : req.sender;
+      if (!usersMap.has(friend.id)) usersMap.set(friend.id, friend);
+    });
+    
+    sharedMembers.forEach(member => {
+      if (!usersMap.has(member.user.id)) usersMap.set(member.user.id, member.user);
+    });
+    
+    const suggestedUsers = Array.from(usersMap.values());
+    res.json({ suggestedUsers });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getProfile, updateProfile, uploadAvatar, searchUsers, getUserBalances, getSuggestedUsers };

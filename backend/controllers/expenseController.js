@@ -68,7 +68,17 @@ const updateExpense = async (req, res, next) => {
     if (!expense) {
       return res.status(404).json({ message: 'Expense not found' });
     }
-    if (expense.createdById !== req.user.id) {
+    let isAuthorized = expense.createdById === req.user.id || expense.paidById === req.user.id;
+    if (!isAuthorized && expense.groupId) {
+      const membership = await prisma.groupMember.findUnique({
+        where: { groupId_userId: { groupId: expense.groupId, userId: req.user.id } }
+      });
+      if (membership && membership.role === 'admin') {
+        isAuthorized = true;
+      }
+    }
+    
+    if (!isAuthorized) {
       return res.status(403).json({ message: 'Not authorized to edit this expense' });
     }
     
@@ -118,8 +128,18 @@ const deleteExpense = async (req, res, next) => {
     if (!expense) {
       return res.status(404).json({ message: 'Expense not found' });
     }
-    if (expense.createdById !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
+    let isAuthorized = expense.createdById === req.user.id || expense.paidById === req.user.id;
+    if (!isAuthorized && expense.groupId) {
+      const membership = await prisma.groupMember.findUnique({
+        where: { groupId_userId: { groupId: expense.groupId, userId: req.user.id } }
+      });
+      if (membership && membership.role === 'admin') {
+        isAuthorized = true;
+      }
+    }
+    
+    if (!isAuthorized) {
+      return res.status(403).json({ message: 'Not authorized to delete this expense' });
     }
 
     // Delete existing notifications (requires native query or finding first since JSON filtering is tricky)
@@ -167,7 +187,6 @@ const getExpenses = async (req, res, next) => {
     const expenses = await prisma.expense.findMany({
       where,
       orderBy: { date: 'desc' },
-      take: 20,
       include: {
         paidBy: { select: { id: true, name: true, avatar: true } },
         splits: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } },

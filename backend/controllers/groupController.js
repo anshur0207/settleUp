@@ -111,7 +111,7 @@ const getGroup = async (req, res, next) => {
           include: {
             paidBy: { select: { id: true, name: true, avatar: true, email: true } },
             createdBy: { select: { id: true, name: true } },
-            splits: true
+            splits: { include: { user: { select: { id: true, name: true, avatar: true, email: true } } } }
           }
         }
       }
@@ -228,19 +228,32 @@ const addMember = async (req, res, next) => {
     }
 
     const email = req.body.email?.toLowerCase().trim();
-    if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
+    const phone = req.body.phone?.trim();
+
+    if (!email && !phone) {
+      return res.status(400).json({ message: 'Email or Phone is required' });
     }
 
-    const existingPending = await prisma.groupPendingMember.findUnique({
+    let existingUser = null;
+    
+    if (email) {
+      existingUser = await prisma.user.findUnique({ where: { email } });
+    } else if (phone) {
+      existingUser = await prisma.user.findFirst({ where: { phone } });
+    }
+
+    if (!existingUser && !email) {
+      return res.status(400).json({ message: 'No user found with this phone number. An email is required to invite a new person.' });
+    }
+
+    const existingPending = email ? await prisma.groupPendingMember.findUnique({
       where: { groupId_email: { groupId, email } }
-    });
+    }) : null;
 
     if (existingPending && existingPending.status === 'pending') {
       return res.status(400).json({ message: 'Invitation already pending for this email' });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       const isAlreadyMember = await prisma.groupMember.findUnique({
         where: { groupId_userId: { groupId, userId: existingUser.id } }
@@ -271,10 +284,20 @@ const addMember = async (req, res, next) => {
       return res.json({ group: membership.group });
     }
 
-    await prisma.groupPendingMember.upsert({
-      where: { groupId_email: { groupId, email } },
-      update: { status: 'pending', invitedById: req.user.id },
-      create: { groupId, email, status: 'pending', invitedById: req.user.id }
+    const crypto = require('crypto');
+    const bcrypt = require('bcryptjs');
+    const dummyPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+    
+    const newShadowUser = await prisma.user.create({
+      data: {
+        email,
+        name: email.split('@')[0],
+        password: dummyPassword,
+      }
+    });
+
+    await prisma.groupMember.create({
+      data: { groupId, userId: newShadowUser.id, role: 'member' }
     });
 
     res.json({ group: membership.group });

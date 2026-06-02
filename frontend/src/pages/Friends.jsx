@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Search, Plus, ArrowUpRight, ArrowDownLeft, MessageCircle, UserPlus, X, Wallet, CreditCard, Smartphone, Building2, Calendar, CheckCircle2 } from 'lucide-react';
 import api from '../services/api.js';
 import LoadingAndErrorStates from './LoadingAndErrorStates.jsx';
+import { useQueryClient } from '@tanstack/react-query';
 
 const paymentMethods = [
   { title: 'UPI Payment', icon: <Smartphone size={22} /> },
@@ -16,6 +17,7 @@ const Friends = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const searchRef = useRef(null);
+  const queryClient = useQueryClient();
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
   const [pendingSent, setPendingSent] = useState([]);
@@ -101,17 +103,27 @@ const Friends = () => {
         const paidById = expense.paidBy?.id || expense.paidBy?._id || expense.paidBy;
         const splitForUser = expense.splits?.find((split) => String(split.user?.id || split.user?._id || split.user) === String(userId));
 
+        const paidByName = expense.paidBy?.name || 'Unknown';
+        const paidByEmail = expense.paidBy?.email || '';
+        const paidByAvatar = expense.paidBy?.avatar || '';
+
         if (String(paidById) === String(userId)) {
           expense.splits
             .filter((split) => String(split.user?.id || split.user?._id || split.user) !== String(userId))
             .forEach((split) => {
               const splitUserId = split.user?.id || split.user?._id || split.user;
               const amount = Number(split.owed ?? split.amount ?? 0);
-              amountsByFriend[splitUserId] = (amountsByFriend[splitUserId] ?? 0) + amount;
+              if (!amountsByFriend[splitUserId]) {
+                 amountsByFriend[splitUserId] = { amount: 0, name: split.user?.name, email: split.user?.email, avatar: split.user?.avatar };
+              }
+              amountsByFriend[splitUserId].amount += amount;
             });
         } else if (splitForUser) {
           const amount = Number(splitForUser.owed ?? splitForUser.amount ?? 0);
-          amountsByFriend[paidById] = (amountsByFriend[paidById] ?? 0) - amount;
+          if (!amountsByFriend[paidById]) {
+             amountsByFriend[paidById] = { amount: 0, name: paidByName, email: paidByEmail, avatar: paidByAvatar };
+          }
+          amountsByFriend[paidById].amount -= amount;
         }
       });
 
@@ -121,16 +133,22 @@ const Friends = () => {
         const amount = Number(settlement.amount ?? 0);
 
         if (String(payerId) === String(userId)) {
-          amountsByFriend[payeeId] = (amountsByFriend[payeeId] ?? 0) + amount;
+          if (!amountsByFriend[payeeId]) {
+             amountsByFriend[payeeId] = { amount: 0, name: settlement.payee?.name, email: settlement.payee?.email, avatar: settlement.payee?.avatar };
+          }
+          amountsByFriend[payeeId].amount += amount;
         } else if (String(payeeId) === String(userId)) {
-          amountsByFriend[payerId] = (amountsByFriend[payerId] ?? 0) - amount;
+          if (!amountsByFriend[payerId]) {
+             amountsByFriend[payerId] = { amount: 0, name: settlement.payer?.name, email: settlement.payer?.email, avatar: settlement.payer?.avatar };
+          }
+          amountsByFriend[payerId].amount -= amount;
         }
       });
 
       const totals = Object.values(amountsByFriend).reduce(
-        (acc, value) => {
-          if (value >= 0) acc.owed += value;
-          else acc.owe += Math.abs(value);
+        (acc, item) => {
+          if (item.amount >= 0) acc.owed += item.amount;
+          else acc.owe += Math.abs(item.amount);
           return acc;
         },
         { owed: 0, owe: 0 }
@@ -167,7 +185,7 @@ const Friends = () => {
   };
 
   const openSettleModal = (friend) => {
-    const balance = friendAmounts[friend.id || friend._id] ?? 0;
+    const balance = friendAmounts[friend.id || friend._id]?.amount ?? 0;
     setSettlingFriend({ ...friend, balance });
     setSettlementAmount(Number(Math.abs(balance).toFixed(2)).toString());
     setSettlementMode('full');
@@ -218,6 +236,7 @@ const Friends = () => {
         referenceId: settlementRef,
       });
       setSettleOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       loadBalances();
       loadFriends();
       loadRequests();
@@ -285,19 +304,35 @@ const Friends = () => {
 
   const focusSearch = () => searchRef.current?.focus();
 
-  const displayFriends = friends.map((friend, index) => {
-    const balance = friendAmounts[friend.id || friend._id] ?? 0;
-    const positive = balance >= 0;
-    const formatted = `₹${Number(Math.abs(balance).toFixed(2)).toLocaleString()}`;
+  const displayFriends = (() => {
+    const friendMap = new Map();
+    friends.forEach(f => {
+      friendMap.set(String(f.id || f._id), { ...f, isFriend: true });
+    });
+    
+    Object.entries(friendAmounts).forEach(([id, data]) => {
+      if (Math.abs(data.amount) > 0 || friendMap.has(id)) {
+        if (!friendMap.has(id)) {
+          friendMap.set(id, { id, name: data.name, email: data.email, avatar: data.avatar, isFriend: false });
+        }
+      }
+    });
 
-    return {
-      ...friend,
-      amount: `${positive ? '+' : '-'}${formatted}`,
-      status: balance === 0 ? 'No balance' : positive ? 'Owes you' : 'You owe',
-      positive,
-      avatar: friend.avatar || `https://i.pravatar.cc/150?img=${11 + index}`,
-    };
-  });
+    return Array.from(friendMap.values()).map((friend) => {
+      const balance = friendAmounts[friend.id || friend._id]?.amount ?? 0;
+      const positive = balance >= 0;
+      const formatted = `₹${Number(Math.abs(balance).toFixed(2)).toLocaleString()}`;
+
+      return {
+        ...friend,
+        amountValue: balance,
+        amount: `${positive ? '+' : '-'}${formatted}`,
+        status: balance === 0 ? 'No balance' : positive ? 'Owes you' : 'You owe',
+        positive,
+        avatar: friend.avatar || `https://ui-avatars.com/api/?name=${friend.name}&background=random`,
+      };
+    }).sort((a, b) => Math.abs(b.amountValue) - Math.abs(a.amountValue));
+  })();
 
   if (pageLoading) {
     return <LoadingAndErrorStates status="loading" message="Loading friends..." />;
@@ -308,7 +343,7 @@ const Friends = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
           <div>
-            <h1 className="text-4xl md:text-5xl font-black text-gray-900">Friends 👥</h1>
+            <h1 className="text-4xl md:text-5xl font-black text-gray-900">Balances ⚖️</h1>
             <p className="text-gray-500 mt-2 text-lg">Manage balances and split expenses with friends.</p>
           </div>
 
@@ -326,7 +361,7 @@ const Friends = () => {
           <div className="bg-white rounded-2xl md:rounded-[28px] p-5 md:p-7 shadow-lg border border-gray-100 h-full">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm md:text-base text-gray-500">Total Friends</p>
+                <p className="text-sm md:text-base text-gray-500">Total Accounts</p>
                 <h2 className="text-2xl md:text-4xl font-black mt-1 md:mt-2">{friends.length}</h2>
               </div>
               <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl bg-emerald-100 flex items-center justify-center text-2xl md:text-3xl shrink-0">👥</div>
@@ -369,7 +404,7 @@ const Friends = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="Search friends by name, email or mobile..."
+              placeholder="Search by name, email or mobile..."
               className="flex-1 h-12 md:h-14 bg-transparent outline-none text-base md:text-lg w-full"
             />
           </div>
@@ -517,7 +552,7 @@ const Friends = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 md:gap-3 mt-4 md:mt-8">
+              <div className="grid grid-cols-2 gap-2 md:gap-3 mt-4 md:mt-8">
                 {!friend.positive ? (
                   <button
                     type="button"
@@ -542,13 +577,6 @@ const Friends = () => {
                 >
                   <MessageCircle size={16} className="w-4 h-4 md:w-5 md:h-5" />
                   Details
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveFriend(friend)}
-                  className="h-10 md:h-14 rounded-xl md:rounded-2xl border border-rose-200 text-rose-500 hover:bg-rose-50 transition font-semibold flex items-center justify-center text-xs md:text-sm"
-                >
-                  Remove
                 </button>
               </div>
             </div>

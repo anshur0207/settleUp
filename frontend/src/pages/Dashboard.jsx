@@ -143,12 +143,11 @@ export default function SettleUpDashboard() {
 
     const activeFriendBalances = Object.values(balanceMap)
       .filter((friend) => friend.amount !== 0)
-      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
-      .slice(0, 2);
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
     return {
       groups: groupData,
-      expenses: expenseData.slice(0, 4),
+      expenses: expenseData,
       unreadNotifCount: dashboardData.unreadNotificationCount || 0,
       friendReqCount: friendReqData.length,
       friendBalances: activeFriendBalances,
@@ -323,12 +322,12 @@ export default function SettleUpDashboard() {
             </div>
 
             {/* Main Grid */}
-            <div className="grid lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="flex flex-col-reverse lg:grid lg:grid-cols-3 gap-6 md:gap-8">
               {/* Recent Expenses */}
               <div className="lg:col-span-2 bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
                 <div className="flex items-center justify-between mb-5 md:mb-8">
                   <div>
-                    <h2 className="text-xl md:text-3xl font-black">Recent Expenses</h2>
+                    <h2 className="text-xl md:text-3xl font-black">All Expenses</h2>
                     <p className="text-xs md:text-sm text-gray-500 mt-1">Latest group and personal expenses</p>
                   </div>
                   <button onClick={() => navigate('/expenses')} className="text-emerald-500 font-semibold hover:underline text-sm md:text-base">
@@ -336,7 +335,7 @@ export default function SettleUpDashboard() {
                   </button>
                 </div>
 
-                <div className="space-y-3 md:space-y-5">
+                <div className="space-y-3 md:space-y-5 max-h-[500px] overflow-y-auto pr-2">
                   {recentExpenses.length ? (
                     recentExpenses.map((expense) => (
                       <div key={expense.id || expense._id} className="flex flex-row items-center justify-between p-4 md:p-5 rounded-2xl md:rounded-3xl hover:bg-gray-50 transition border border-gray-100 gap-2">
@@ -383,7 +382,7 @@ export default function SettleUpDashboard() {
               </div>
 
               {/* Right Side */}
-              <div className="space-y-6 md:space-y-8">
+              <div className="flex flex-col-reverse lg:flex-col gap-6 md:gap-8">
                 {/* Groups */}
                 <div className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
                   <div className="flex items-center justify-between mb-4 md:mb-6">
@@ -411,7 +410,7 @@ export default function SettleUpDashboard() {
                               <p className="text-xs md:text-sm text-gray-500">{group.category || 'Group'}</p>
                             </div>
                           </div>
-                          <p className="text-xs md:text-sm text-gray-700">{group.expenses?.length || 0} expenses</p>
+                          <p className="text-xs md:text-sm text-gray-700">{group.expenseCount || 0} expenses</p>
                         </button>
                       ))
                     ) : (
@@ -424,7 +423,7 @@ export default function SettleUpDashboard() {
                 <div className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
                   <div className="flex items-center justify-between mb-4 md:mb-6">
                     <div>
-                      <h2 className="text-xl md:text-2xl font-black">Friend Balances</h2>
+                      <h2 className="text-xl md:text-2xl font-black">Balances</h2>
                       <p className="text-xs md:text-sm text-gray-500 mt-1">Quick payment summary</p>
                     </div>
                   </div>

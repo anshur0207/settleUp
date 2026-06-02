@@ -1,7 +1,9 @@
 const https = require('https');
 const http = require('http');
-
-const url = process.env.BACKEND_URL || 'http://localhost:5001/health';
+const port = process.env.PORT || 5000;
+const url = process.env.RENDER_EXTERNAL_URL 
+  ? `${process.env.RENDER_EXTERNAL_URL}/health` 
+  : process.env.BACKEND_URL || `http://localhost:${port}/health`;
 
 function ping() {
   const protocol = url.startsWith('https') ? https : http;
