@@ -122,11 +122,7 @@ export default function Notifications() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-          <SummaryCard title="Unread Alerts" value={unreadCount.toString()} emoji="🔔" />
-          <SummaryCard title="Settlements" value={`₹${settlementAmount.toLocaleString()}`} emoji="💰" />
 
-        </div>
 
         <div className="bg-white rounded-[30px] p-5 shadow-lg border border-gray-100 flex flex-col md:flex-row gap-4 items-center mb-8">
           <div className="flex items-center gap-4 w-full">
