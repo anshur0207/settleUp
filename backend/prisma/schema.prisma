@@ -125,7 +125,7 @@ model Expense {
 
   paidBy      User           @relation("ExpensePaidBy", fields: [paidById], references: [id])
   createdBy   User           @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  group       Group?         @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group       Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
   splits      ExpenseSplit[]
 
   @@index([paidById])
@@ -167,7 +167,7 @@ model Settlement {
 
   payer       User     @relation("SettlementPayer", fields: [payerId], references: [id], onDelete: Cascade)
   payee       User     @relation("SettlementPayee", fields: [payeeId], references: [id], onDelete: Cascade)
-  group       Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group       Group?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([payerId])
   @@index([payeeId])

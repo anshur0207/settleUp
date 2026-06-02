@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { href: '/friends', label: 'Friends', icon: '👥' },
+  { href: '/friends', label: 'Balances', icon: '⚖️' },
   { href: '/groups', label: 'Groups', icon: '🧾' },
   { href: '/activity', label: 'Activity', icon: '⚡' },
   { href: '/analytics', label: 'Analytics', icon: '📊' },

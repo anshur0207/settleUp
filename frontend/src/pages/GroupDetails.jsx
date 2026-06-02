@@ -13,27 +13,32 @@ import {
   MoreVertical,
   Edit3,
   Trash2,
+  Crown,
 } from 'lucide-react';
 import api from '../services/api.js';
 import { minimizeDebts } from '../utils/smartSplit.js';
 import LoadingAndErrorStates from './LoadingAndErrorStates.jsx';
+import { useQueryClient } from '@tanstack/react-query';
 
 const GroupDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [group, setGroup] = useState(null);
   const [settlements, setSettlements] = useState([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
-  const [friends, setFriends] = useState([]);
+  const [suggestedUsers, setSuggestedUsers] = useState([]);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [descInput, setDescInput] = useState('');
 
-  const currentUserId = user?._id || user?.id;
+  const currentUserId = user?.id || user?.id;
   const [deletingExpenseId, setDeletingExpenseId] = useState(null);
 
   const handleToggleSmartSplit = async (e) => {
@@ -56,18 +61,19 @@ const GroupDetails = () => {
     }
   };
 
-  const loadFriends = async () => {
+  const loadSuggestedUsers = async () => {
     try {
-      const response = await api.get('friends');
-      setFriends(response.data.friends || []);
+      const response = await api.get('/users/suggested');
+      setSuggestedUsers(response.data.suggestedUsers || []);
     } catch (err) {
-      console.error('Unable to load friends', err);
+      console.error('Unable to load suggested users', err);
     }
   };
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteType, setDeleteType] = useState(''); // 'expense' or 'group'
   const [targetId, setTargetId] = useState(null);
+  const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
 
   const handleDeleteExpense = (expenseId) => {
     setDeleteType('expense');
@@ -92,6 +98,7 @@ const GroupDetails = () => {
       setDeletingExpenseId(targetId);
       try {
         await api.delete(`expenses/${targetId}`);
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
         await loadGroup();
       } catch (err) {
         console.error('Unable to delete expense', err);
@@ -103,6 +110,7 @@ const GroupDetails = () => {
     } else if (deleteType === 'group') {
       try {
         await api.delete(`/groups/${id}`);
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
         navigate('/groups');
       } catch (err) {
         console.error('Failed to delete group', err);
@@ -111,6 +119,7 @@ const GroupDetails = () => {
     } else if (deleteType === 'member') {
       try {
         await api.delete(`/groups/${id}/members/${targetId}`);
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
         if (String(targetId) === String(currentUserId)) {
           navigate('/groups');
         } else {
@@ -125,31 +134,31 @@ const GroupDetails = () => {
 
   const isAdmin = useMemo(() => {
     if (!group || !group.admins) return false;
-    return group.admins.some((adminId) => String(adminId?._id || adminId) === String(currentUserId));
+    return group.admins.some((adminId) => String(adminId?.id || adminId) === String(currentUserId));
   }, [group, currentUserId]);
 
   useEffect(() => {
     if (id) {
       const init = async () => {
         setPageLoading(true);
-        await Promise.all([loadGroup(), loadFriends()]);
+        await Promise.all([loadGroup(), loadSuggestedUsers()]);
         setPageLoading(false);
       };
       init();
     }
   }, [id]);
 
-  const availableFriends = useMemo(() => {
-    if (!group || !friends) return [];
+  const availableSuggestions = useMemo(() => {
+    if (!group || !suggestedUsers) return [];
     
     const memberEmails = group.members?.map(m => m.email?.toLowerCase()) || [];
     const pendingEmails = group.pendingMembers?.map(p => p.email?.toLowerCase()) || [];
     
-    return friends.filter(friend => 
-      !memberEmails.includes(friend.email?.toLowerCase()) &&
-      !pendingEmails.includes(friend.email?.toLowerCase())
+    return suggestedUsers.filter(user => 
+      !memberEmails.includes(user.email?.toLowerCase()) &&
+      !pendingEmails.includes(user.email?.toLowerCase())
     );
-  }, [group, friends]);
+  }, [group, suggestedUsers]);
 
   const handleAddFriend = async (email) => {
     try {
@@ -167,16 +176,19 @@ const GroupDetails = () => {
     setStatusMessage('');
 
     const email = inviteEmail.trim().toLowerCase();
-    if (!email) {
-      setError('Enter an email to invite.');
+    const phone = invitePhone.trim();
+    if (!email && !phone) {
+      setError('Enter an email or phone number to invite.');
       return;
     }
 
     setLoading(true);
     try {
-      await api.post(`/groups/${id}/members`, { email });
-      setStatusMessage(`Invitation sent to ${email}.`);
+      await api.post(`/groups/${id}/members`, { email, phone, name: inviteName.trim() });
+      setStatusMessage(`Member successfully added/invited.`);
       setInviteEmail('');
+      setInvitePhone('');
+      setInviteName('');
       await loadGroup();
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to invite member');
@@ -201,11 +213,10 @@ const GroupDetails = () => {
     }
   };
 
-  const recentExpenses = useMemo(() => {
+  const allExpenses = useMemo(() => {
     return (group?.expenses || [])
       .slice()
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 3);
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [group]);
 
   const totalExpenses = useMemo(() => {
@@ -216,9 +227,9 @@ const GroupDetails = () => {
     if (group?.settings?.smartSplit) {
       const netBalances = {};
       (group?.expenses || []).forEach(expense => {
-        const paidBy = String(expense.paidBy?._id || expense.paidBy);
+        const paidBy = String(expense.paidBy?.id || expense.paidBy);
         expense.splits?.forEach(split => {
-          const user = String(split.user?._id || split.user);
+          const user = String(split.user?.id || split.user);
           const owed = split.owed ?? split.amount ?? 0;
           if (user !== paidBy && owed > 0) {
             netBalances[user] = (netBalances[user] || 0) - owed;
@@ -228,8 +239,8 @@ const GroupDetails = () => {
       });
 
       settlements.forEach(settlement => {
-        const payer = String(settlement.payer?._id || settlement.payer);
-        const payee = String(settlement.payee?._id || settlement.payee);
+        const payer = String(settlement.payer?.id || settlement.payer);
+        const payee = String(settlement.payee?.id || settlement.payee);
         netBalances[payer] = (netBalances[payer] || 0) + settlement.amount;
         netBalances[payee] = (netBalances[payee] || 0) - settlement.amount;
       });
@@ -248,7 +259,7 @@ const GroupDetails = () => {
       return Object.entries(myBalances)
         .filter(([, amount]) => Math.abs(amount) > 0.01)
         .map(([memberId, amount]) => {
-          const member = group?.members?.find((item) => String(item._id) === memberId);
+          const member = group?.members?.find((item) => String(item.id) === memberId);
           return {
             id: memberId,
             name: member?.name || 'Unknown',
@@ -261,17 +272,17 @@ const GroupDetails = () => {
 
     const balances = {};
     (group?.expenses || []).forEach((expense) => {
-      const paidById = expense.paidBy?._id || expense.paidBy;
+      const paidById = expense.paidBy?.id || expense.paidBy;
       if (String(paidById) === String(currentUserId)) {
         expense.splits?.forEach((split) => {
-          const splitUserId = split.user?._id || split.user;
+          const splitUserId = split.user?.id || split.user;
           if (String(splitUserId) !== String(currentUserId)) {
             balances[splitUserId] = (balances[splitUserId] || 0) + (split.owed ?? split.amount ?? 0);
           }
         });
       } else {
         const mySplit = expense.splits?.find(
-          (split) => String(split.user?._id || split.user) === String(currentUserId)
+          (split) => String(split.user?.id || split.user) === String(currentUserId)
         );
         if (mySplit) {
           balances[paidById] = (balances[paidById] || 0) - (mySplit.owed ?? mySplit.amount ?? 0);
@@ -280,8 +291,8 @@ const GroupDetails = () => {
     });
 
     settlements.forEach(settlement => {
-      const payerId = String(settlement.payer?._id || settlement.payer);
-      const payeeId = String(settlement.payee?._id || settlement.payee);
+      const payerId = String(settlement.payer?.id || settlement.payer);
+      const payeeId = String(settlement.payee?.id || settlement.payee);
       
       if (payerId === String(currentUserId)) {
          balances[payeeId] = (balances[payeeId] || 0) + settlement.amount;
@@ -293,7 +304,7 @@ const GroupDetails = () => {
     return Object.entries(balances)
       .filter(([, amount]) => Math.abs(amount) > 0.01)
       .map(([memberId, amount]) => {
-        const member = group?.members?.find((item) => String(item._id) === memberId);
+        const member = group?.members?.find((item) => String(item.id) === memberId);
         return {
           id: memberId,
           name: member?.name || 'Unknown',
@@ -328,6 +339,7 @@ const GroupDetails = () => {
           groupId: id,
           note: 'Group Settlement',
         });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
         await loadGroup();
       } catch (err) {
         console.error(err);
@@ -377,6 +389,97 @@ const GroupDetails = () => {
           </div>
         </div>
       )}
+      {addMemberModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-white rounded-3xl p-7 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-black text-gray-900 mb-6">Add Members</h3>
+            <form onSubmit={handleInviteEmail} className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Name</label>
+                <input
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  type="text"
+                  placeholder="John Doe"
+                  className="w-full mt-2 h-14 rounded-xl border border-gray-200 px-4 text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Email</label>
+                  <input
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    type="email"
+                    placeholder="john@example.com"
+                    className="w-full mt-2 h-14 rounded-xl border border-gray-200 px-4 text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Phone</label>
+                  <input
+                    value={invitePhone}
+                    onChange={(e) => setInvitePhone(e.target.value)}
+                    type="tel"
+                    placeholder="+1234567890"
+                    className="w-full mt-2 h-14 rounded-xl border border-gray-200 px-4 text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">Please provide an email OR phone number.</p>
+              {error && <p className="text-sm text-rose-600">{error}</p>}
+              {statusMessage && <p className="text-sm text-emerald-700">{statusMessage}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-bold shadow-lg disabled:opacity-60"
+              >
+                {loading ? 'Adding...' : 'Add Member'}
+              </button>
+            </form>
+
+            {availableSuggestions.length > 0 && (
+              <div className="mt-8 border-t border-gray-100 pt-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Suggested Contacts</h2>
+                <div className="grid gap-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                  {availableSuggestions.map(friend => (
+                    <div key={friend.id} className="rounded-2xl bg-gray-50 p-3 border border-gray-100 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        {friend.avatar ? (
+                          <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold shadow-sm">
+                            {friend.name?.charAt(0).toUpperCase() || 'U'}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-semibold text-gray-900">{friend.name}</p>
+                          <p className="text-xs text-gray-500">{friend.email}</p>
+                        </div>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => handleAddFriend(friend.email)}
+                        className="px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-xl hover:bg-emerald-600 transition"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <button
+              type="button"
+              onClick={() => setAddMemberModalOpen(false)}
+              className="w-full mt-4 h-14 rounded-2xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
       <main className="p-4 md:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
           <div>
@@ -398,11 +501,35 @@ const GroupDetails = () => {
               </div>
             </label>
             <button
+              onClick={() => setAddMemberModalOpen(true)}
+              className="h-14 px-6 rounded-2xl border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition font-semibold shadow-sm flex items-center gap-3 bg-white"
+            >
+              <Users size={20} />
+              Add Member
+            </button>
+            <button
               onClick={() => navigate(`/expenses/new?groupId=${id}`)}
               className="h-14 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-lg flex items-center gap-3"
             >
               <Plus size={20} />
               Add Expense
+            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleDeleteGroup}
+                className="hidden lg:flex h-14 px-5 rounded-2xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition font-semibold items-center gap-2 shadow-sm"
+              >
+                <Trash2 size={18} />
+                Delete
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleRemoveMember(currentUserId)}
+              className="hidden lg:flex h-14 px-5 rounded-2xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition font-semibold items-center gap-2 shadow-sm"
+            >
+              Leave
             </button>
           </div>
         </div>
@@ -418,18 +545,18 @@ const GroupDetails = () => {
             <div className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-3xl font-black text-gray-900">Recent Expenses</h2>
-                  <p className="text-gray-500 mt-2 text-lg">Latest trip expenses and payments.</p>
+                  <h2 className="text-3xl font-black text-gray-900">Group Expenses</h2>
+                  <p className="text-gray-500 mt-2 text-lg">All trip expenses and payments.</p>
                 </div>
                 <button className="w-12 h-12 rounded-2xl border border-gray-200 hover:bg-gray-50 transition flex items-center justify-center">
                   <MoreVertical size={20} className="text-gray-500" />
                 </button>
               </div>
 
-              <div className="space-y-5">
-                {recentExpenses.length > 0 ? (
-                  recentExpenses.map((expense, index) => (
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-5 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100 hover:bg-gray-50 transition" key={expense._id || index}>
+              <div className="space-y-5 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {allExpenses.length > 0 ? (
+                  allExpenses.map((expense, index) => (
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-5 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100 hover:bg-gray-50 transition" key={expense.id || index}>
                       <div className="flex items-center gap-4 md:gap-5">
                         <div className="w-12 h-12 md:w-16 md:h-16 shrink-0 rounded-2xl md:rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                           <Receipt size={24} />
@@ -444,14 +571,14 @@ const GroupDetails = () => {
                         </div>
                       </div>
                       <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center mt-2 md:mt-0 gap-3">
-                        <h2 className={`text-2xl md:text-3xl font-black ${String(expense.paidBy?._id || expense.paidBy) === String(currentUserId) ? 'text-emerald-500' : 'text-red-500'}`}>
+                        <h2 className={`text-2xl md:text-3xl font-black ${String(expense.paidBy?.id || expense.paidBy) === String(currentUserId) ? 'text-emerald-500' : 'text-red-500'}`}>
                           ₹{expense.amount?.toLocaleString()}
                         </h2>
-                        {expense.createdBy?._id === currentUserId && (
+                        {(String(expense.createdBy?.id || expense.createdBy) === String(currentUserId) || String(expense.paidBy?.id || expense.paidBy) === String(currentUserId) || isAdmin) && (
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => navigate(`/expenses/edit/${expense._id}`)}
+                              onClick={() => navigate(`/expenses/edit/${expense.id}`)}
                               className="inline-flex items-center justify-center h-10 md:h-auto gap-2 rounded-xl md:rounded-2xl border border-gray-200 px-3 md:px-4 py-2 text-xs md:text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
                             >
                               <Edit3 size={16} /> Edit
@@ -459,7 +586,7 @@ const GroupDetails = () => {
                             <button
                               type="button"
                               onClick={() => {
-                                setTargetId(expense._id);
+                                setTargetId(expense.id);
                                 setDeleteType('expense');
                                 setDeleteModalOpen(true);
                               }}
@@ -473,7 +600,7 @@ const GroupDetails = () => {
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500">No recent expenses yet.</p>
+                  <p className="text-sm text-gray-500">No expenses yet.</p>
                 )}
               </div>
             </div>
@@ -550,13 +677,19 @@ const GroupDetails = () => {
                 )}
 
               </div>
+              <button
+                onClick={() => navigate(`/groups/${id}/balances`)}
+                className="mt-6 w-full h-14 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition font-bold text-lg flex items-center justify-center gap-2"
+              >
+                View All Balances
+              </button>
             </div>
 
             <div className="bg-white rounded-[32px] p-7 shadow-lg border border-gray-100">
               <h2 className="text-2xl font-black text-gray-900 mb-6">Group Members</h2>
               <div className="grid gap-3">
                 {group?.members?.map((member) => (
-                  <div key={member._id} className="rounded-3xl bg-gray-50 p-4 border border-gray-100 flex justify-between items-center">
+                  <div key={member.id} className="rounded-3xl bg-gray-50 p-4 border border-gray-100 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                       {member.avatar ? (
                         <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-xl object-cover shadow-sm" />
@@ -566,13 +699,21 @@ const GroupDetails = () => {
                         </div>
                       )}
                       <div>
-                        <p className="font-semibold text-gray-900">{member.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900">{member.name}</p>
+                          {group?.admins?.some((adminId) => String(adminId?.id || adminId) === String(member.id)) && (
+                            <div className="bg-amber-100 text-amber-600 px-2 py-0.5 rounded-md flex items-center gap-1" title="Group Admin">
+                              <Crown size={12} strokeWidth={3} />
+                              <span className="text-[10px] font-bold uppercase tracking-wide">Admin</span>
+                            </div>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">{member.email}</p>
                       </div>
                     </div>
-                    {isAdmin && String(member._id) !== String(currentUserId) && (
+                    {isAdmin && String(member.id) !== String(currentUserId) && (
                       <button
-                        onClick={() => handleRemoveMember(member._id)}
+                        onClick={() => handleRemoveMember(member.id)}
                         className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition"
                       >
                         Remove
@@ -584,81 +725,10 @@ const GroupDetails = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
-              <h2 className="text-2xl font-black text-gray-900 mb-6">Invite Members</h2>
-              <label className="text-sm font-semibold text-gray-500 uppercase tracking-[2px]">Email Address</label>
-              <div className="relative mt-4">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  type="email"
-                  placeholder="friend@example.com"
-                  className="w-full h-16 rounded-2xl border border-gray-200 pl-14 pr-5 text-lg focus:outline-none focus:ring-4 focus:ring-emerald-100"
-                />
-              </div>
-              <button
-                onClick={handleInviteEmail}
-                disabled={loading}
-                className="mt-6 w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-bold shadow-lg disabled:opacity-60"
-              >
-                {loading ? 'Sending invite...' : 'Invite to Group'}
-              </button>
-              {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
-              {statusMessage && <p className="mt-3 text-sm text-emerald-700">{statusMessage}</p>}
-            </div>
-
-            {availableFriends.length > 0 && (
-              <div className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
-                <h2 className="text-2xl font-black text-gray-900 mb-6">Add from Friends</h2>
-                <div className="grid gap-3">
-                  {availableFriends.map(friend => (
-                    <div key={friend._id} className="rounded-2xl md:rounded-3xl bg-gray-50 p-4 border border-gray-100 flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        {friend.avatar ? (
-                          <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold shadow-sm">
-                            {friend.name?.charAt(0).toUpperCase() || 'F'}
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-semibold text-gray-900">{friend.name}</p>
-                          <p className="text-xs text-gray-500">{friend.email}</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => handleAddFriend(friend.email)}
-                        className="px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-xl hover:bg-emerald-600 transition"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {group?.pendingMembers?.length > 0 && (
-              <div className="bg-white rounded-2xl md:rounded-[32px] p-5 md:p-7 shadow-lg border border-gray-100">
-                <h2 className="text-2xl font-black text-gray-900 mb-6">Pending Invitations</h2>
-                <div className="p-4 md:p-5 rounded-2xl bg-gray-50 text-gray-500 leading-relaxed">
-                  {group.pendingMembers.map((pending) => (
-                    <div key={pending.email} className="mb-4 rounded-xl md:rounded-2xl bg-white p-4 shadow-sm border border-gray-100">
-                      <p className="font-semibold text-gray-900">{pending.name || pending.email}</p>
-                      <p className="text-sm text-gray-500 mt-1">{pending.email}</p>
-                      <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">
-                        {pending.status === 'pending' ? 'Pending' : pending.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        <div className="mt-10 pt-8 pb-20 lg:pb-0 border-t border-rose-100">
+        <div className="mt-10 pt-8 pb-20 lg:pb-0 border-t border-rose-100 lg:hidden">
           <h2 className="text-xl font-bold text-gray-900 mb-5">Danger Zone</h2>
           <div className="flex items-center gap-4 flex-wrap">
             {isAdmin && (

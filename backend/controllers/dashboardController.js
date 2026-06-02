@@ -38,7 +38,6 @@ const getDashboard = async (req, res, next) => {
           ]
         },
         orderBy: { date: 'desc' },
-        take: 20,
         include: {
           paidBy: { select: { id: true, name: true, avatar: true } },
           createdBy: { select: { id: true, name: true } },
@@ -53,7 +52,6 @@ const getDashboard = async (req, res, next) => {
           OR: [{ payerId: userId }, { payeeId: userId }]
         },
         orderBy: { createdAt: 'desc' },
-        take: 50,
         include: {
           payer: { select: { id: true, name: true, avatar: true } },
           payee: { select: { id: true, name: true, avatar: true } }

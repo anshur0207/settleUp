@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
 import { ChevronLeft, Calendar, Upload, Receipt, Users, CheckCircle2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 const categories = ['🍔 Food', '⛽ Fuel', '🏨 Hotel', '✈ Travel', '🎉 Fun', '📦 Other'];
 
@@ -20,6 +21,7 @@ export default function AddExpense() {
   const navigate = useNavigate();
   const { expenseId } = useParams();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const groupQuery = searchParams.get('groupId') || '';
   const isEditMode = Boolean(expenseId);
   const userId = user?.id || user?._id;
@@ -181,6 +183,8 @@ export default function AddExpense() {
         await api.post('expenses', payload);
       }
 
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
       if (searchParams.get('redirect') === 'dashboard') {
         navigate('/dashboard');
       } else if (isEditMode && groupId) {
@@ -219,13 +223,14 @@ export default function AddExpense() {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <InputField label="Expense Title" value={title} onChange={setTitle} placeholder="Dinner with friends" />
             <InputField label="Amount" value={amount} onChange={setAmount} placeholder="₹ 0.00" type="number" />
-            <InputField label="Date" value={date} onChange={setDate} type="date" />
+            <InputField label="Date" value={date} onChange={setDate} type="date" max={new Date().toISOString().slice(0, 10)} />
             <div>
               <label className="text-sm font-semibold text-gray-500 uppercase tracking-[2px]">Group</label>
               <select
                 value={groupId}
+                disabled={!!groupQuery}
                 onChange={(e) => setGroupId(e.target.value)}
-                className="mt-2 md:mt-3 w-full h-14 md:h-16 rounded-xl md:rounded-2xl border border-gray-200 px-4 md:px-5 text-base md:text-lg bg-white focus:outline-none focus:ring-4 focus:ring-emerald-100 shadow-sm transition"
+                className={`mt-2 md:mt-3 w-full h-14 md:h-16 rounded-xl md:rounded-2xl border border-gray-200 px-4 md:px-5 text-base md:text-lg bg-white focus:outline-none focus:ring-4 focus:ring-emerald-100 shadow-sm transition ${!!groupQuery ? 'opacity-70 cursor-not-allowed bg-gray-50' : ''}`}
               >
                 <option value="">Personal Expense</option>
                 {groups.map((group) => (
@@ -496,12 +501,13 @@ export default function AddExpense() {
   );
 }
 
-function InputField({ label, value, onChange, placeholder, type = 'text' }) {
+function InputField({ label, value, onChange, placeholder, type = 'text', max }) {
   return (
     <div>
       <label className="text-[10px] md:text-sm font-semibold text-gray-500 uppercase tracking-[2px]">{label}</label>
       <input
         type={type}
+        max={max}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
