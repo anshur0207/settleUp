@@ -11,6 +11,13 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   // Add custom client header to prevent basic external scripts
   config.headers['x-app-client'] = 'settleup-web';
+  
+  // Attach Bearer token for cross-origin authentication
+  const token = localStorage.getItem('settleup_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  
   return config;
 });
 
