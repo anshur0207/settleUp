@@ -17,6 +17,7 @@ model User {
   avatar              String?          @default("")
   currency            String           @default("INR")
   settings            Json             @default("{\"darkMode\":false,\"quickAdd\":true,\"pushNotifications\":true,\"twoFactor\":false,\"mobileAlerts\":true}")
+  isAdmin             Boolean          @default(false)
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 

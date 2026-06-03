@@ -17,6 +17,7 @@ const settlementRoutes = require("./routes/settlementRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 // Middleware
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
@@ -100,6 +101,11 @@ API ROUTES
 ========================================
 */
 app.use("/api", (req, res, next) => {
+  // Browsers don't send custom headers during preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   // Prevent basic external scripts/Postman from accessing the API
   if (req.headers['x-app-client'] !== 'settleup-web') {
     return res.status(403).json({ message: "Forbidden: Access denied." });
@@ -116,6 +122,7 @@ app.use("/api/settlements", settlementRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/admin", adminRoutes);
 
 /*
 ========================================

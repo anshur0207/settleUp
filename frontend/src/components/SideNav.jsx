@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
@@ -11,6 +12,7 @@ const navItems = [
 
 const SideNav = () => {
   const location = useLocation();
+  const { user } = useAuth();
   
   const currentItem = navItems.find((item) => location.pathname.startsWith(item.href));
   const pageName = currentItem ? currentItem.label : 'Overview';
@@ -41,6 +43,18 @@ const SideNav = () => {
             </Link>
           );
         })}
+        
+        {user?.isAdmin && (
+          <Link
+            to="/admin"
+            className={`flex items-center gap-3 rounded-3xl px-4 py-4 text-sm font-medium transition ${
+              location.pathname === '/admin' ? 'bg-red-50 text-red-600' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <span className="text-lg">🛡️</span>
+            Admin
+          </Link>
+        )}
       </nav>
 
       <div className="mt-auto rounded-[30px] bg-emerald-50 p-5 text-slate-700">
