@@ -90,7 +90,7 @@ const registerUser = async (req, res, next) => {
       sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
-    res.status(201).json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar, isAdmin: user.isAdmin } });
+    res.status(201).json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar, isAdmin: user.isAdmin } });
   } catch (error) {
     next(error);
   }
@@ -118,7 +118,7 @@ const loginUser = async (req, res, next) => {
       sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
-    res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar, isAdmin: user.isAdmin } });
+    res.json({ token, user: { id: user.id, name: user.name, username: user.username, email: user.email, phone: user.phone, currency: user.currency, avatar: user.avatar, isAdmin: user.isAdmin } });
   } catch (error) {
     next(error);
   }

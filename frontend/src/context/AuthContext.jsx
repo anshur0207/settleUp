@@ -13,9 +13,13 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  const login = ({ user: authUser }) => {
-    localStorage.setItem('settleup_user', JSON.stringify(authUser));
-    setUser(authUser);
+  const login = (userData) => {
+    setUser(userData.user || userData);
+    if (userData.token) {
+      localStorage.setItem('settleup_token', userData.token);
+    }
+    localStorage.setItem('settleup_user', JSON.stringify(userData.user || userData));
+    navigate('/dashboard');
   };
 
   const updateUser = (updates) => {
@@ -26,18 +30,21 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await api.post('auth/logout');
+      await api.post('/auth/logout');
     } catch (err) {
-      console.error('Logout API failed:', err);
+      console.error('Logout error', err);
     }
-    localStorage.removeItem('settleup_user');
     setUser(null);
+    localStorage.removeItem('settleup_user');
+    localStorage.removeItem('settleup_token');
+    navigate('/login');
   };
 
   useEffect(() => {
     const handleUnauthorized = () => {
       // Clear local state if backend says cookie is invalid/expired
       localStorage.removeItem('settleup_user');
+      localStorage.removeItem('settleup_token');
       setUser(null);
     };
 
