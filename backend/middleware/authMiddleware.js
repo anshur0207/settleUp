@@ -25,7 +25,7 @@ const protect = async (req, res, next) => {
         where: { id: decoded.id },
         select: {
           id: true, name: true, email: true, currency: true, avatar: true,
-          createdAt: true, updatedAt: true, settings: true
+          createdAt: true, updatedAt: true, settings: true, isAdmin: true
         }
       });
 
@@ -40,8 +40,16 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Token invalid or expired' });
+    return res.status(401).json({ message: 'Not authorized, invalid token' });
   }
 };
 
-module.exports = { protect };
+const protectAdmin = (req, res, next) => {
+  if (req.user && req.user.isAdmin) {
+    next();
+  } else {
+    res.status(403).json({ message: 'Not authorized as an admin' });
+  }
+};
+
+module.exports = { protect, protectAdmin };

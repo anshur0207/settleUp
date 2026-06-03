@@ -7,7 +7,7 @@ const MobileTopMenu = ({ friendReqCount = 0, unreadNotifCount = 0 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -61,6 +61,14 @@ const MobileTopMenu = ({ friendReqCount = 0, unreadNotifCount = 0 }) => {
           >
             ⚡ Activity
           </button>
+          {user?.isAdmin && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="px-5 py-4 text-left font-medium text-red-600 bg-red-50 hover:bg-red-100 flex items-center gap-2 border-b border-red-100"
+            >
+              🛡️ Admin Dashboard
+            </button>
+          )}
           <button
             onClick={() => navigate('/analytics')}
             className="px-5 py-4 text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-b border-gray-50"

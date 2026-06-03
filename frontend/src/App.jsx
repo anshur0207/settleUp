@@ -17,6 +17,7 @@ import Settings from './pages/Settings.jsx';
 import AddExpense from './pages/AddExpense.jsx';
 import Expenses from './pages/Expenses.jsx';
 import LoadingAndErrorStates from './pages/LoadingAndErrorStates.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AppLayout from './components/AppLayout.jsx';
 
@@ -44,6 +45,7 @@ function App() {
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/expenses" element={<Expenses />} />
                 <Route path="/expenses/new" element={<AddExpense />} />
                 <Route path="/expenses/edit/:expenseId" element={<AddExpense />} />
